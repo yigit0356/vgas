@@ -4,7 +4,7 @@
     "scripts": {
         "build": "nitro build",
         "dev": "nitro dev",
-        "preview": "node .output/server/index.mjs"
+        "start": "node .output/server/index.mjs"
     },
     "devDependencies": {
         "@google/generative-ai": "^0.24.1",
