@@ -42,7 +42,8 @@ export default defineEventHandler(async (event) => {
             ])
             resultText = result.response.text()
 
-            if (!resultText) throw new Error('Gemini boş bir yanıt döndürdü.')
+            if (!resultText)
+                throw new Error('The AI returned an empty response.')
         } catch (error) {
             throw createError({
                 statusCode: 502,
