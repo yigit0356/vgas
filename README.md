@@ -79,7 +79,7 @@ This tool was developed as a “personal tutor” concept, especially for studen
 
 ## 🤝 Katkıda Bulunma
 
-1. Projeyi Forklayın.
-2. Yeni bir Feature Branch açın (git checkout -b feature/YeniOzellik).
-3. Değişikliklerinizi Commit edin.
-4. Pull Request oluşturun.
+1. Fork the project.
+2. Create a new Feature Branch (git checkout -b feature/NewFeature).
+3. Commit your changes.
+4. Create a Pull Request.
