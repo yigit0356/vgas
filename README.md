@@ -1,46 +1,78 @@
-# Voice-Guided Academic Solver (VGAS) 🎓🎙️
+# 🎓 Voice-Guided Academic Solver (VGAS)
 
-**Voice-Guided Academic Solver** is an AI-powered educational assistant designed to transform the way students solve complex university-level problems. By bridging the gap between visual input and auditory guidance, VGAS allows students to take a photo of a problem and receive real-time, step-by-step voice instructions to solve and write it down manually on paper.
+VGAS, üniversite düzeyindeki karmaşık problemleri görsel girdiden işitsel rehberliğe dönüştüren, bulut tabanlı bir akademik asistandır. Sistem, bir donanım kontrolcüsü (Raspberry Pi) ve güçlü bir bulut arka planının (Nitro + Gemini) senkronize çalışmasıyla, öğrencilere problemleri adım adım kağıda dökme imkanı tanır.
 
 ---
 
-## 🌟 Vision
+## 🏗️ Sistem Mimarisi
 
-The primary goal of VGAS is to provide a "Personal Tutor" experience. Unlike traditional solvers that just show a static result, VGAS narrates the **methodology**, ensuring the student understands the logic and can physically document the process.
+Proje, düşük gecikmeli veri işleme ve yüksek performans için iki ana katmana ayrılmıştır:
 
-## ✨ Key Features
+### 🌐 1. Bulut Sunucu (Cloud/Web) - `/web`
 
--   **Multimodal AI Processing:** High-accuracy recognition of handwritten formulas, mathematical notations, and complex text.
--   **"Dictation Mode":** Specifically designed speech patterns that guide the student's hand.
--   **Multiple-Choice Strategy (MCQ):** \* Analyzes all options (A, B, C, D, E).
-    -   Explains the **elimination process** (Why A is wrong, why C is a distractor).
-    -   Provides the logical path to the correct option.
--   **Adaptive Learning Pace:** Users can control the speed of narration or ask for repetitions via voice commands.
--   **LaTeX to Descriptive Speech:** Converts complex mathematical symbols into natural verbal instructions.
+Merkezi işlem birimi olarak çalışır. Herhangi bir VPS veya Cloud platformunda barındırılabilir.
 
-## 🛠️ Technology Stack
+-   **API Endpoint (`/api/analyze`):** Raspberry Pi'dan gelen görüntüleri karşılar.
+-   **Zeka:** Gemini 1.5 Pro Vision API kullanarak problemi analiz eder ve çözüm mantığını kurar.
+-   **Ses Sentezleme:** ElevenLabs API aracılığıyla çözüm adımlarını doğal bir insan sesine dönüştürür.
+-   **Teknoloji:** Nitro (UnJS), TypeScript, ElevenLabs SDK, Google Generative AI.
 
--   **Backend:** [Nitro](https://nitro.unjs.io/) (Server Engine)
--   **Language:** TypeScript
--   **AI Engine:** Gemini 1.5 Pro / Vision API
--   **Prompt Engineering:** Structured Markdown-based prompt management
--   **Package Manager:** pnpm
+### 🤖 2. Uç Cihaz (Controller) - `/controller`
 
-## 🚀 Workflow
+Öğrencinin masasında bulunan fiziksel donanımı yönetir.
 
-1.  **Capture:** Student snaps a photo of a problem (Open-ended or Multiple-choice).
-2.  **Analyze:** The AI identifies the problem type.
-3.  **Strategic Processing:**
-    -   _For Open-ended:_ Generates step-by-step derivation.
-    -   _For MCQ:_ Evaluates each option and identifies the correct one through logical elimination.
-4.  **Narrate:** The TTS engine reads the instructions aloud, pausing for the student to write.
+-   **Görüntü Yakalama:** Pi Camera üzerinden yüksek çözünürlüklü problem çekimi.
+-   **İletişim:** Yakalanan veriyi Bulut API'ye asenkron olarak iletir.
+-   **Oynatma:** Sunucudan dönen sesli komutları hoparlör üzerinden öğrenciye aktarır.
+-   **Teknoloji:** Python/Node.js, Raspberry Pi OS.
 
-## 🎯 Target Audience
+---
 
--   University students in STEM fields (Science, Technology, Engineering, Math).
--   Students with visual impairments or learning disabilities.
--   Auditory learners who retain information better through hearing.
+---
 
-## 🤝 Contributing
+## ✨ Ana Özellikler
 
-This project was written for the purpose of cheating on exams. Please do not use it for any other purpose.
+-   **Dikte Modu:** Matematiksel ifadeleri ($ax^2 + bx + c$) sadece sonuç olarak değil, yazım hızına uygun talimatlarla söyler.
+-   **Akıllı Eleme (MCQ):** Çoktan seçmeli sorularda yanlış şıkların neden elendiğini mantıksal olarak açıklar.
+-   **LaTeX'ten Doğal Dile:** Karmaşık formülleri işitsel olarak betimler (Örn: "İntegral sembolü içine x kare yazın").
+-   **Hibrit Yapı:** Ağır işlemleri bulutta yaparak Raspberry Pi üzerinde minimum kaynak tüketimi sağlar.
+
+---
+
+## 🛠️ Kurulum
+
+### Bulut Sunucu Kurulumu (`/web`)
+
+```bash
+cd web
+pnpm install
+# .env dosyasını oluşturun:
+# GEMINI_API_KEY=...
+# ELEVENLABS_API_KEY=...
+pnpm dev
+```
+
+### Raspberry Pi Kurulumu (`/controller`)
+
+Raspberry Pi üzerinde terminali açın ve cihazı hazırlamak için kurulum scriptini çalıştırın:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/yigit0356/vgas/refs/heads/main/controller_setup.sh | bash
+```
+
+Script; kamera sürücülerini, gerekli kütüphaneleri ve ses çıkış ayarlarını otomatik yapılandırır.
+
+---
+
+🚀 Çalışma Akışı
+
+1. **Capture**: Öğrenci butona basar, Raspberry Pi fotoğrafı çeker.
+2. **Upload**: Fotoğraf, buluttaki /api/analyze endpoint'ine POST edilir.
+3. **Process**: Bulut sunucu Gemini ile soruyu çözer, ElevenLabs ile seslendirir.
+4. **Execute**: Raspberry Pi, gelen ses dosyasını oynatarak öğrenciyi yönlendirir.
+
+---
+
+⚖️ Kullanım Amacı ve Etik Notu
+
+Bu araç, özellikle **işitsel öğrenme modelini** benimseyen öğrenciler ve **görme güçlüğü/disleksi** gibi engelleri olan bireyler için bir "kişisel öğretmen" konseptiyle geliştirilmiştir. Akademik dürüstlük çerçevesinde, öğrenme sürecini desteklemek amacıyla kullanılması tavsiye edilir.
