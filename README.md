@@ -1,78 +1,85 @@
 # 🎓 Voice-Guided Academic Solver (VGAS)
 
-VGAS, üniversite düzeyindeki karmaşık problemleri görsel girdiden işitsel rehberliğe dönüştüren, bulut tabanlı bir akademik asistandır. Sistem, bir donanım kontrolcüsü (Raspberry Pi) ve güçlü bir bulut arka planının (Nitro + Gemini) senkronize çalışmasıyla, öğrencilere problemleri adım adım kağıda dökme imkanı tanır.
+VGAS is a cloud-based academic assistant that transforms complex university-level problems from visual input into auditory guidance. The system, which synchronizes a hardware controller (Raspberry Pi) with a powerful cloud backend (Nitro + Gemini), enables students to break down problems step by step onto paper.
 
 ---
 
-## 🏗️ Sistem Mimarisi
+## ✨ Key Features
 
-Proje, düşük gecikmeli veri işleme ve yüksek performans için iki ana katmana ayrılmıştır:
-
-### 🌐 1. Bulut Sunucu (Cloud/Web) - `/web`
-
-Merkezi işlem birimi olarak çalışır. Herhangi bir VPS veya Cloud platformunda barındırılabilir.
-
--   **API Endpoint (`/api/analyze`):** Raspberry Pi'dan gelen görüntüleri karşılar.
--   **Zeka:** Gemini 1.5 Pro Vision API kullanarak problemi analiz eder ve çözüm mantığını kurar.
--   **Ses Sentezleme:** ElevenLabs API aracılığıyla çözüm adımlarını doğal bir insan sesine dönüştürür.
--   **Teknoloji:** Nitro (UnJS), TypeScript, ElevenLabs SDK, Google Generative AI.
-
-### 🤖 2. Uç Cihaz (Controller) - `/controller`
-
-Öğrencinin masasında bulunan fiziksel donanımı yönetir.
-
--   **Görüntü Yakalama:** Pi Camera üzerinden yüksek çözünürlüklü problem çekimi.
--   **İletişim:** Yakalanan veriyi Bulut API'ye asenkron olarak iletir.
--   **Oynatma:** Sunucudan dönen sesli komutları hoparlör üzerinden öğrenciye aktarır.
--   **Teknoloji:** Python/Node.js, Raspberry Pi OS.
+-   **Dictation Mode:** Speaks mathematical expressions ($ax^2 + bx + c$) not only as results but also as instructions tailored to your typing speed.
+-   **Smart Elimination (MCQ):** Logically explains why incorrect options are eliminated in multiple-choice questions.
+-   **LaTeX to Natural Language:** Verbally describes complex formulas (e.g., “Write x squared inside the integral symbol”).
+-   **Hybrid Architecture:** Performs heavy processing in the cloud, ensuring minimal resource consumption on the Raspberry Pi.
 
 ---
 
+## 🏗️ System Architecture
+
+The project is divided into two main layers for low-latency data processing and high performance:
+
+### 🌐 1. Cloud Server (Cloud/Web) - `/web`
+
+It functions as the central processing unit. It can be hosted on any VPS or Cloud platform.
+
+-   **API Endpoint (`/api/analyze`):** Receives images from the Raspberry Pi.
+-   **Intelligence:** Analyzes the problem and establishes the solution logic using the Gemini 1.5 Pro Vision API.
+-   **Speech Synthesis:** Converts the solution steps into a natural human voice via the ElevenLabs API.
+-   **Technology:** Nitro (UnJS), TypeScript, ElevenLabs SDK, Google Generative AI.
+
+### 🤖 2. Edge Device (Controller) - `/controller`
+
+Manages the physical hardware on the student's desk.
+
+-   **Image Capture:** High-resolution problem capture via Pi Camera.
+-   **Communication:** Asynchronously transmits captured data to the Cloud API.
+-   **Playback:** Transmits voice commands returned from the server to the student via the speaker.
+-   **Technology:** Python/Node.js, Raspberry Pi OS.
+
 ---
 
-## ✨ Ana Özellikler
+## 🛠️ Installation
 
--   **Dikte Modu:** Matematiksel ifadeleri ($ax^2 + bx + c$) sadece sonuç olarak değil, yazım hızına uygun talimatlarla söyler.
--   **Akıllı Eleme (MCQ):** Çoktan seçmeli sorularda yanlış şıkların neden elendiğini mantıksal olarak açıklar.
--   **LaTeX'ten Doğal Dile:** Karmaşık formülleri işitsel olarak betimler (Örn: "İntegral sembolü içine x kare yazın").
--   **Hibrit Yapı:** Ağır işlemleri bulutta yaparak Raspberry Pi üzerinde minimum kaynak tüketimi sağlar.
-
----
-
-## 🛠️ Kurulum
-
-### Bulut Sunucu Kurulumu (`/web`)
+### Cloud Server Installation (`/web`)
 
 ```bash
 cd web
 pnpm install
-# .env dosyasını oluşturun:
+# Create the .env file:
 # GEMINI_API_KEY=...
 # ELEVENLABS_API_KEY=...
 pnpm dev
 ```
 
-### Raspberry Pi Kurulumu (`/controller`)
+### Raspberry Pi Setup (`/controller`)
 
-Raspberry Pi üzerinde terminali açın ve cihazı hazırlamak için kurulum scriptini çalıştırın:
+Open the terminal on the Raspberry Pi and run the setup script to prepare the device:
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/yigit0356/vgas/refs/heads/main/controller_setup.sh | bash
 ```
 
-Script; kamera sürücülerini, gerekli kütüphaneleri ve ses çıkış ayarlarını otomatik yapılandırır.
+Script; automatically configures camera drivers, necessary libraries, and audio output settings.
 
 ---
 
-🚀 Çalışma Akışı
+🚀 Workflow
 
-1. **Capture**: Öğrenci butona basar, Raspberry Pi fotoğrafı çeker.
-2. **Upload**: Fotoğraf, buluttaki /api/analyze endpoint'ine POST edilir.
-3. **Process**: Bulut sunucu Gemini ile soruyu çözer, ElevenLabs ile seslendirir.
-4. **Execute**: Raspberry Pi, gelen ses dosyasını oynatarak öğrenciyi yönlendirir.
+1. **Capture**: The student presses the button, and the Raspberry Pi takes a photo.
+2. **Upload**: The photo is POSTed to the /api/analyze endpoint in the cloud.
+3. **Process**: The cloud server solves the question with Gemini and narrates it with ElevenLabs.
+4. **Execute**: The Raspberry Pi plays the received audio file to guide the student.
 
 ---
 
-⚖️ Kullanım Amacı ve Etik Notu
+⚖️ Purpose of Use and Ethical Note
 
-Bu araç, özellikle **işitsel öğrenme modelini** benimseyen öğrenciler ve **görme güçlüğü/disleksi** gibi engelleri olan bireyler için bir "kişisel öğretmen" konseptiyle geliştirilmiştir. Akademik dürüstlük çerçevesinde, öğrenme sürecini desteklemek amacıyla kullanılması tavsiye edilir.
+This tool was developed as a “personal tutor” concept, especially for students who adopt an **auditory learning model** and individuals with disabilities such as **visual impairment/dyslexia**. It is recommended to be used within the framework of academic integrity to support the learning process.
+
+---
+
+## 🤝 Katkıda Bulunma
+
+1. Projeyi Forklayın.
+2. Yeni bir Feature Branch açın (git checkout -b feature/YeniOzellik).
+3. Değişikliklerinizi Commit edin.
+4. Pull Request oluşturun.
