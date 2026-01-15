@@ -77,7 +77,7 @@ This tool was developed as a “personal tutor” concept, especially for studen
 
 ---
 
-## 🤝 Katkıda Bulunma
+## 🤝 Contribution
 
 1. Fork the project.
 2. Create a new Feature Branch (git checkout -b feature/NewFeature).
