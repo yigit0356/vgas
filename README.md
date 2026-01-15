@@ -62,7 +62,7 @@ Script; automatically configures camera drivers, necessary libraries, and audio 
 
 ---
 
-🚀 Workflow
+## 🚀 Workflow
 
 1. **Capture**: The student presses the button, and the Raspberry Pi takes a photo.
 2. **Upload**: The photo is POSTed to the /api/analyze endpoint in the cloud.
@@ -71,7 +71,7 @@ Script; automatically configures camera drivers, necessary libraries, and audio 
 
 ---
 
-⚖️ Purpose of Use and Ethical Note
+## ⚖️ Purpose of Use and Ethical Note
 
 This tool was developed as a “personal tutor” concept, especially for students who adopt an **auditory learning model** and individuals with disabilities such as **visual impairment/dyslexia**. It is recommended to be used within the framework of academic integrity to support the learning process.
 
