@@ -55,7 +55,7 @@ pnpm dev
 Open the terminal on the Raspberry Pi and run the setup script to prepare the device:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/yigit0356/vgas/refs/heads/main/controller_setup.sh | bash
+curl -sSL https://raw.githubusercontent.com/yigit0356/vgas/refs/heads/main/controller/setup.sh | bash
 ```
 
 Script; automatically configures camera drivers, necessary libraries, and audio output settings.

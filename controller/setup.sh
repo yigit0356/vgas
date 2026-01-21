@@ -1,61 +1,74 @@
 #!/bin/bash
 
-REPO_URL="https://github.com/yigit0356/vgas.git"
-TARGET_DIR="$HOME/vgas"
-SUBFOLDER="controller"
-SERVICE_NAME="vgas"
-PYTHON_EXE="/usr/bin/python3"
+set -e
 
-echo "=== Custom Setup Starting ==="
+echo "--- System updating ---"
+sudo apt-get update && sudo apt-get upgrade -y
+sudo apt-get install -y git python3-pip python3-venv network-manager curl
 
-sudo apt update && sudo apt install -y python3 python3-pip git
+echo "--- Balena-os/wifi-connect is installing ---"
+curl -L https://github.com/balena-os/wifi-connect/releases/download/v4.11.1/wifi-connect-linux-rpi.tar.gz | tar -xvz
+sudo mv wifi-connect /usr/local/bin/
 
-echo "WI-FI is expected..."
-until ping -c 1 google.com &>/dev/null; do sleep 5; done
+echo "--- Repo is being cloned ---"
+PROJECT_DIR="$HOME/vgas_project"
+mkdir -p $PROJECT_DIR
+git clone https://github.com/yigit0356/vgas $PROJECT_DIR/repo
 
-TEMP_DIR=$(mktemp -d)
-echo "Repo is being temporarily downloaded to the $TEMP_DIR directory...."
-git clone $REPO_URL $TEMP_DIR
+echo "--- Python virtual environment and dependencies are being prepared ---"
+cd $PROJECT_DIR/repo/controller
+python3 -m venv venv
+source venv/bin/activate
 
-if [ -d "$TEMP_DIR/$SUBFOLDER" ]; then
-    echo "Target folder ($SUBFOLDER) has been found and is being moved...."
-    mkdir -p $TARGET_DIR
-    cp -r $TEMP_DIR/$SUBFOLDER/. $TARGET_DIR/
-    rm -rf $TEMP_DIR
-else
-    echo "ERROR: The ‘$SUBFOLDER’ folder could not be found in the repository."
-    exit 1
-fi
-
-cd $TARGET_DIR
 if [ -f "requirements.txt" ]; then
-    echo "Dependencies are loading..."
-    pip3 install -r requirements.txt
+    echo "requirements.txt found, dependencies are being installed..."
+    pip install -r requirements.txt
+else
+    echo "requirements.txt not found, dependency installation skipped."
 fi
 
-echo "System service is being created..."
-sudo bash -c "cat <<EOT > /etc/systemd/system/$SERVICE_NAME.service
+deactivate
+
+echo "--- Systemd services are being created ---"
+
+sudo bash -c "cat <<EOF > /etc/systemd/system/wifi-connect.service
 [Unit]
-Description=VGAS Setup
-After=network-online.target
-Wants=network-online.target
+Description=Wireless Connect Captive Portal
+After=network-manager.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/wifi-connect -u /usr/local/share/wifi-connect/ui
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF"
+
+DEVICE_NAME=$(hostname)
+
+sudo bash -c "cat <<EOF > /etc/systemd/system/vgas-controller.service
+[Unit]
+Description=VGAS Setup ($DEVICE_NAME)
+After=network.target wifi-connect.service
 
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$TARGET_DIR
-ExecStart=$PYTHON_EXE $TARGET_DIR/main.py
+WorkingDirectory=$PROJECT_DIR/repo/controller
+ExecStart=$PROJECT_DIR/repo/controller/venv/bin/python3 main.py
 Restart=always
-RestartSec=10
 
 [Install]
 WantedBy=multi-user.target
-EOT"
+EOF"
 
+echo "--- Services are being activated ---"
 sudo systemctl daemon-reload
-sudo systemctl enable $SERVICE_NAME.service
-sudo systemctl restart $SERVICE_NAME.service
+sudo systemctl enable wifi-connect.service
+sudo systemctl enable vgas-controller.service
 
-echo "=== Process Complete ==="
-echo "Project path: $TARGET_DIR"
-echo "Service status: $(sudo systemctl is-active $SERVICE_NAME)"
+echo "-----------------------------------------------------------------"
+echo "Setup is complete! It is recommended that you restart the device."
+echo "-----------------------------------------------------------------"
