@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+websockets
+pydantic
+python-dotenv
+psutil
+Pillow
+requests
+pygame
+RPi.GPIO
