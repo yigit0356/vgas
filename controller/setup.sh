@@ -16,8 +16,17 @@ sudo apt-get install -y git python3-pip python3-venv python3-dev \
 echo "--- [2/6] Wifi-Connect (Captive Portal) kuruluyor ---"
 # Wifi-connect, cihazın Wi-Fi ayarlarını telefon üzerinden yapmanızı sağlar
 if [ ! -f "/usr/local/bin/wifi-connect" ]; then
-    curl -L https://github.com/balena-os/wifi-connect/releases/download/v4.11.1/wifi-connect-linux-rpi.tar.gz | tar -xvz
-    sudo mv wifi-connect /usr/local/bin/
+    echo "Wifi-connect indiriliyor..."
+    # v4.4.6 Raspberry Pi (armv7hf) için uyumlu sürümdür
+    WIFI_CONNECT_VERSION="4.4.6"
+    WIFI_CONNECT_URL="https://github.com/balena-os/wifi-connect/releases/download/v$WIFI_CONNECT_VERSION/wifi-connect-v$WIFI_CONNECT_VERSION-linux-armv7hf.tar.gz"
+    
+    if curl -L "$WIFI_CONNECT_URL" | tar -xvz; then
+        sudo mv wifi-connect /usr/local/bin/
+        echo "Wifi-connect başarıyla kuruldu."
+    else
+        echo "UYARI: Wifi-connect indirilemedi. Bu adım atlanıyor, kurulum devam ediyor..."
+    fi
 fi
 
 echo "--- [3/6] Proje dizini ve Python ortamı hazırlanıyor ---"
