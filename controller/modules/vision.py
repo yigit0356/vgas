@@ -2,6 +2,7 @@ import asyncio
 import io
 import time
 import requests
+import base64
 from PIL import Image
 from core.module import BaseModule
 
@@ -38,7 +39,11 @@ class VisionModule(BaseModule):
         self.stop_audio_event = False
         self.cancel_workflow = False
         self.has_error = False
+        self.workflow_finished = False
         self.current_step = "idle" # camera, ai, audio, idle
+        self.status_message = "System Standby - Ready for Command"
+        self.last_image = None # Base64 string
+        self.last_audio = None # Base64 string
 
         if HAS_PYGAME:
             pygame.mixer.init()
@@ -47,21 +52,29 @@ class VisionModule(BaseModule):
             GPIO.setmode(GPIO.BCM)
             GPIO.setup(self.BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-    async def update_status(self, status, step=None, has_error=None):
+    async def update_status(self, status, step=None, has_error=None, finished=None):
         """Sends vision process status to dashboard"""
         if step: self.current_step = step
         if has_error is not None: self.has_error = has_error
+        if finished is not None: self.workflow_finished = finished
+        self.status_message = status
         
         await self.manager.socket_manager.broadcast({
             "type": "vision_update",
             "data": {
-                "status": status,
+                "status": self.status_message,
                 "step": self.current_step,
                 "is_processing": self.is_processing,
                 "audio_state": self.audio_state,
-                "has_error": self.has_error
+                "has_error": self.has_error,
+                "workflow_finished": self.workflow_finished,
+                "assets": {
+                    "image": self.last_image,
+                    "audio": self.last_audio
+                }
             }
         })
+        print(f"Vision state updated: {self.current_step}, processing={self.is_processing}, error={self.has_error}")
 
     def take_a_photo(self):
         try:
@@ -97,6 +110,7 @@ class VisionModule(BaseModule):
             
             self.audio_state = "idle"
             self.stop_audio_event = False
+            await self.update_status("Speaking finished", "idle")
         except Exception as e:
             print(f"Audio error: {e}")
             self.audio_state = "idle"
@@ -120,13 +134,18 @@ class VisionModule(BaseModule):
                 timeout=120
             )
             if response.status_code == 200:
-                return response.content
+                return response.content, None
             else:
-                print(f"API Error: {response.status_code} - {response.text}")
-                return None
+                try:
+                    error_data = response.json()
+                    error_msg = error_data.get("message", response.text)
+                except:
+                    error_msg = response.text
+                print(f"API Error: {response.status_code} - {error_msg}")
+                return None, f"API {response.status_code}: {error_msg}"
         except Exception as e:
             print(f"Analyze error: {e}")
-            return None
+            return None, str(e)
 
     async def process_workflow(self):
         if self.is_processing:
@@ -143,6 +162,12 @@ class VisionModule(BaseModule):
         loop = asyncio.get_event_loop()
         photo = await loop.run_in_executor(None, self.take_a_photo)
         
+        if photo:
+            buffered = io.BytesIO()
+            photo.save(buffered, format="JPEG")
+            self.last_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            await self.update_status("Image captured and processed", "camera")
+
         if self.cancel_workflow: return self.reset_states()
         if not photo:
             self.is_processing = False
@@ -152,13 +177,17 @@ class VisionModule(BaseModule):
 
         # Step 2: Analyzing
         await self.update_status("Analyzing via AI...", "ai")
-        audio_data = await self.image_to_speech(photo)
+        audio_data, error_msg = await self.image_to_speech(photo)
         
+        if audio_data:
+            self.last_audio = base64.b64encode(audio_data).decode('utf-8')
+            await self.update_status("AI analysis received", "ai")
+
         if self.cancel_workflow: return self.reset_states()
         if not audio_data:
             self.is_processing = False
-            await self.update_status("AI Error: Failed to analyze image via API", has_error=True)
-            await self.notify("AI error: Failed to analyze image", "warning")
+            await self.update_status(f"AI Error: {error_msg}", has_error=True)
+            await self.notify(f"AI analysis failed: {error_msg}", "warning")
             return
 
         # Step 3: Audio Playback
@@ -167,7 +196,8 @@ class VisionModule(BaseModule):
         # Finished
         if not self.cancel_workflow:
             self.is_processing = False
-            await self.update_status("Analysis Completed", "idle")
+            self.workflow_finished = True
+            await self.update_status("Analysis Completed Successfully", "idle", finished=True)
             await self.notify("Vision process completed", "success")
         else:
             self.reset_states()
@@ -177,10 +207,14 @@ class VisionModule(BaseModule):
         self.audio_state = "idle"
         self.cancel_workflow = False
         self.has_error = False
+        self.workflow_finished = False
         self.stop_audio_event = True
         self.current_step = "idle"
+        self.status_message = "System Standby - Ready for Command"
+        self.last_image = None
+        self.last_audio = None
         pygame.mixer.music.stop()
-        asyncio.create_task(self.update_status("", "idle"))
+        asyncio.create_task(self.update_status(self.status_message, self.current_step))
 
     async def execute_command(self, command, data=None):
         print(f"Vision command received: {command}")
@@ -202,27 +236,49 @@ class VisionModule(BaseModule):
                 await self.update_status("Speaking...", "audio")
             return {"status": self.audio_state}
             
-        if command == "audio_stop" or command == "reset_vision":
+        if command == "audio_stop":
+            self.audio_state = "idle"
+            pygame.mixer.music.stop()
+            await self.update_status("Audio Stopped", self.current_step)
+            return {"status": "stopped"}
+
+        if command == "reset_vision":
             self.cancel_workflow = True
             self.reset_states()
             return {"status": "reset"}
 
         if command == "audio_backward":
             try:
-                pygame.mixer.music.rewind()
+                pygame.mixer.music.play()
+                await self.update_status("Restarting Speech...", "audio")
             except: pass
-            return {"status": "rewinded"}
+            return {"status": "restarted"}
+
+        if command == "audio_forward":
+            try:
+                # Pygame get_pos() returns ms since play() started.
+                # set_pos() works in seconds for most formats.
+                current_time = pygame.mixer.music.get_pos() / 1000.0
+                pygame.mixer.music.set_pos(current_time + 10.0)
+                await self.update_status("Skipping Forward...", "audio")
+            except: pass
+            return {"status": "forwarded"}
 
         return {"error": "Unknown command"}
 
     def get_state(self):
         """Returns the current state for syncing with new clients"""
         return {
-            "status": "System Ready" if self.current_step == "idle" and not self.is_processing else "Active",
+            "status": self.status_message,
             "step": self.current_step,
             "is_processing": self.is_processing,
             "audio_state": self.audio_state,
-            "has_error": self.has_error
+            "has_error": self.has_error,
+            "workflow_finished": self.workflow_finished,
+            "assets": {
+                "image": self.last_image,
+                "audio": self.last_audio
+            }
         }
 
     async def start(self):

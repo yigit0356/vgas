@@ -90,7 +90,7 @@ class SystemModule(BaseModule):
         """Simulates a fake API request to check for the latest version"""
         await asyncio.sleep(2) # Simulate network lag
         # Mocking: Let's say a new version 1.2.5 is available
-        self.latest_version = "1.2.6" 
+        self.latest_version = "1.2.5" 
         self.update_available = self.latest_version != self.CURRENT_VERSION
         return {
             "current": self.CURRENT_VERSION,

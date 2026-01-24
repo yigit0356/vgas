@@ -4,6 +4,8 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>VGAS Controller</title>
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2360a5fa' stroke-width='1.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.952 11.952 0 0112 15c-2.998 0-5.74-1.1-7.843-2.918M4.284 14.253A8.959 8.959 0 013 12c0-.778.099-1.533.284-2.253' /%3E%3C/svg%3E">
         <!-- Vue 3 CDN -->
         <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
         <!-- Tailwind CSS CDN -->
@@ -19,6 +21,9 @@
             rel="stylesheet"
         />
         <style>
+            html {
+                background-color: #0f172a; /* Match the base theme color */
+            }
             body {
                 font-family: 'Outfit', sans-serif;
                 background: radial-gradient(
@@ -26,8 +31,10 @@
                     #1e293b,
                     #0f172a
                 );
+                background-attachment: fixed; /* Keep background steady during scroll */
                 color: #f8fafc;
                 min-height: 100vh;
+                margin: 0;
             }
             .glass {
                 background: rgba(255, 255, 255, 0.03);
@@ -54,6 +61,30 @@
                 transform: translateX(30px);
             }
 
+            /* Loading Screen */
+            .loader-screen {
+                background: radial-gradient(circle at center, #1e293b, #0f172a);
+                z-index: 9999;
+            }
+            .loader-spinner {
+                border: 3px solid rgba(96, 165, 250, 0.1);
+                border-top: 3px solid #60a5fa;
+                border-radius: 50%;
+                width: 50px;
+                height: 50px;
+                animation: spin 1s linear infinite;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .fade-exit-active {
+                transition: opacity 0.8s ease;
+            }
+            .fade-exit-to {
+                opacity: 0;
+            }
+
             /* Custom Scrollbar UI */
             ::-webkit-scrollbar {
                 width: 5px;
@@ -78,29 +109,61 @@
         </style>
     </head>
     <body>
-        <div id="app" class="p-4 md:p-8 max-w-4xl mx-auto">
+        <div id="app">
+            <!-- Global Loading Screen -->
+            <transition name="fade">
+                <div v-if="!initialized" class="loader-screen fixed inset-0 flex flex-col items-center justify-center gap-6">
+                    <div class="relative">
+                        <div class="loader-spinner"></div>
+                        <div class="absolute inset-0 bg-blue-400/50 blur-xl opacity-5 animate-pulse"></div>
+                    </div>
+                    <div class="flex flex-col items-center gap-2">
+                        <h2 class="text-xl font-bold tracking-[0.3em] uppercase text-white animate__animated animate__pulse animate__infinite">
+                            VGAS System
+                        </h2>
+                        <p class="text-[10px] font-black tracking-[0.4em] uppercase text-blue-400/60 transition-all duration-500">
+                            {{ connected ? 'Synchronizing Data' : 'Establishing Secure Link' }}
+                        </p>
+                    </div>
+                </div>
+            </transition>
+
+            <div class="p-4 md:p-8 max-w-4xl mx-auto">
             <!-- Header -->
             <header
                 class="flex justify-between items-center mb-12 animate__animated animate__fadeInDown"
             >
-                <div>
-                    <h1
-                        class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400"
-                    >
-                        VGAS
-                    </h1>
-                    <p class="text-slate-400 text-sm mt-1">
-                        Controller Remote Intelligence
-                    </p>
+                <div class="flex items-center gap-4">
+                    <!-- High-tech Icon Wrapper -->
+                    <div class="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center relative group shadow-2xl">
+                        <div class="absolute inset-0 bg-blue-500/10 rounded-2xl blur-xl group-hover:bg-blue-500/20 transition-all duration-700"></div>
+                        <svg class="w-7 h-7 text-blue-400 relative z-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.952 11.952 0 0112 15c-2.998 0-5.74-1.1-7.843-2.918M4.284 14.253A8.959 8.959 0 013 12c0-.778.099-1.533.284-2.253" />
+                        </svg>
+                    </div>
+
+                    <div>
+                        <h1 class="text-3xl font-black tracking-tighter text-white uppercase">VGAS</h1>
+                        <p class="text-[9px] font-black uppercase tracking-[0.4em] text-slate-500">
+                            Controller Remote Intelligence
+                        </p>
+                    </div>
                 </div>
-                <div class="flex items-center gap-3">
-                    <div
-                        :class="{'bg-emerald-500': connected, 'bg-red-500': !connected}"
-                        class="w-3 h-3 rounded-full animate-pulse"
-                    ></div>
-                    <span class="text-sm font-medium"
-                        >Web Socket {{ connected ? 'Connected' : 'Disconnected' }}</span
-                    >
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-3 bg-slate-800/40 backdrop-blur-md px-4 py-2 rounded-2xl border border-slate-700/50">
+                        <span class="text-[10px] font-black text-slate-500 tracking-[0.2em] uppercase">
+                            Version {{ telemetry.system.version }}
+                        </span>
+                        
+                        <!-- Update Badge -->
+                        <button 
+                            v-if="telemetry.system.update_available"
+                            @click="performUpdate"
+                            class="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-[9px] font-black rounded uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all animate-pulse"
+                        >
+                            Update v{{ telemetry.system.latest_version }}
+                        </button>
+                    </div>
                 </div>
             </header>
 
@@ -120,20 +183,29 @@
                     </h2>
                     
                     <div class="flex items-center gap-3">
-                        <!-- Reset / New Analysis Button -->
+                        <!-- 1. Processing: Cancel Button -->
                         <button 
-                            v-if="vision.is_processing || (vision.status && vision.status !== '' && vision.status !== 'System Ready')"
+                            v-if="vision.is_processing"
                             @click="resetVision"
-                            class="px-6 py-2 rounded-full text-xs font-bold transition-all bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 animate__animated animate__fadeIn"
+                            class="px-6 py-2.5 rounded-full text-xs font-bold transition-all bg-red-500/10 border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white animate__animated animate__fadeIn"
                         >
-                            {{ vision.is_processing ? 'Cancel & Reset' : 'New Analysis' }}
+                            Cancel Process
                         </button>
 
-                        <!-- Run Button -->
+                        <!-- 2. Finished: Reset Button -->
+                        <button 
+                            v-else-if="vision.workflow_finished || vision.has_error"
+                            @click="resetVision"
+                            class="px-6 py-2.5 rounded-full text-xs font-bold transition-all bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                        >
+                            Reset Engine
+                        </button>
+
+                        <!-- 3. Idle: Run Button -->
                         <button 
                             v-else
                             @click="triggerVision"
-                            class="px-8 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/40 transform hover:scale-105 active:scale-95"
+                            class="px-8 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/40 transform hover:scale-105"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Run Analysis
@@ -143,6 +215,11 @@
 
                 <!-- Process Steps Visualizer -->
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-8 relative pb-4">
+                    <!-- Connector Line (Desktop) -->
+                    <div class="hidden md:block absolute top-7 left-[12.5%] right-[12.5%] h-px bg-slate-700 z-0"></div>
+                    <!-- Connector Line (Mobile) -->
+                    <div class="md:hidden absolute top-7 bottom-12 left-1/2 -ml-px w-px bg-slate-700 z-0"></div>
+
                     <div
                         v-for="(label, step) in visionSteps"
                         :key="step"
@@ -158,6 +235,9 @@
                             <svg v-if="isStepCompleted(step)" class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
                                 <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                             </svg>
+                            <svg v-else-if="vision.has_error && vision.step === step" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                             <span v-else class="text-sm font-black">{{ stepIndex(step) }}</span>
                         </div>
                         
@@ -166,7 +246,7 @@
                             getStepTextClass(step),
                             vision.has_error && vision.step === step ? 'text-red-400' : ''
                         ]"
-                        class="text-[10px] uppercase font-black tracking-[0.2em] text-center"
+                        class="text-[10px] uppercase font-black tracking-[0.2em] text-center transition-all duration-700"
                     >
                         {{ label }}
                     </p>
@@ -178,7 +258,6 @@
                     :class="vision.has_error ? 'border-red-500/30 bg-red-500/5' : 'border-slate-800'"
                 >
                     <div v-if="vision.is_processing" class="absolute top-0 left-0 h-1 bg-purple-500 animate-[shimmer_2s_infinite]"></div>
-                    <div v-if="vision.has_error" class="absolute top-0 left-0 h-1 w-full bg-red-500"></div>
                     
                     <p 
                         :class="vision.has_error ? 'text-red-400' : 'text-slate-100'"
@@ -200,16 +279,21 @@
                                 <button 
                                     v-if="vision.audio_state === 'playing'"
                                     @click="sendAudioCommand('audio_pause')"
-                                    class="p-4 bg-purple-600 hover:bg-purple-500 rounded-full transition-all text-white shadow-lg shadow-purple-900/40 transform hover:scale-105 active:scale-95"
+                                    class="p-4 bg-purple-600 hover:bg-purple-500 rounded-full transition-all text-white shadow-lg shadow-purple-900/40 transform hover:scale-105"
                                 >
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" /></svg>
                                 </button>
                                 <button 
                                     v-else
                                     @click="sendAudioCommand('audio_resume')"
-                                    class="p-4 bg-emerald-600 hover:bg-emerald-500 rounded-full transition-all text-white shadow-lg shadow-emerald-900/40 transform hover:scale-105 active:scale-95"
+                                    class="p-4 bg-emerald-600 hover:bg-emerald-500 rounded-full transition-all text-white shadow-lg shadow-emerald-900/40 transform hover:scale-105"
                                 >
                                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                                </button>
+
+                                <!-- Forward -->
+                                <button @click="sendAudioCommand('audio_forward')" class="p-3 hover:bg-slate-700 rounded-full transition-all text-slate-400 hover:text-white" title="Forward">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.934 12.8a1 1 0 000-1.6l-5.334-4A1 1 0 005 8v8a1 1 0 001.6.8l5.334-4zM19.934 12.8a1 1 0 000-1.6l-5.334-4A1 1 0 0013 8v8a1 1 0 001.6.8l5.334-4z" /></svg>
                                 </button>
 
                                 <!-- Stop -->
@@ -220,6 +304,71 @@
                         </div>
                     </transition>
                 </div>
+
+                <!-- Processed Assets Area -->
+                <transition name="fade">
+                    <div v-if="vision.assets.image || vision.assets.audio" class="mt-8 border-t border-slate-700/50 pt-8">
+                        <div class="flex items-center gap-2 mb-4">
+                            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            <h3 class="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Processed Assets</h3>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Image Asset -->
+                            <a 
+                                v-if="vision.assets.image" 
+                                :href="'data:image/jpeg;base64,' + vision.assets.image" 
+                                target="_blank"
+                                class="relative group max-w-xs"
+                                title="Click to view full size"
+                            >
+                                <div class="absolute -inset-0.5 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+                                <div class="relative bg-slate-900 rounded-2xl overflow-hidden border border-slate-700/50 shadow-2xl">
+                                    <img :src="'data:image/jpeg;base64,' + vision.assets.image" class="w-full h-32 object-cover group-hover:scale-105 transition-transform duration-700" alt="Captured Scene">
+                                    <div class="absolute top-2 left-2 px-2 py-1 bg-black/60 backdrop-blur-md rounded-md border border-white/10">
+                                        <p class="text-[7px] font-black text-white uppercase tracking-widest">Captured Frame</p>
+                                    </div>
+                                    <div class="absolute bottom-2 right-2 p-1.5 bg-black/40 backdrop-blur-md rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                    </div>
+                                </div>
+                            </a>
+
+                            <!-- Audio Status Asset -->
+                            <div v-if="vision.assets.audio" class="flex flex-col justify-center gap-3 p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50 max-w-xs">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                                        <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-xs font-bold text-slate-200 uppercase tracking-wide">AI Response</p>
+                                        <p class="text-[9px] text-slate-500 font-medium uppercase tracking-wider">Synchronized</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex-1 h-1 bg-slate-700 rounded-full overflow-hidden">
+                                        <div 
+                                            class="h-full bg-purple-500 transition-all duration-300"
+                                            :class="vision.audio_state === 'playing' ? 'animate-[shimmer_2s_infinite]' : ''"
+                                            :style="{ width: vision.audio_state === 'idle' && vision.workflow_finished ? '100%' : '30%' }"
+                                        ></div>
+                                    </div>
+                                    <button 
+                                        @click="downloadAudio" 
+                                        class="p-1.5 bg-slate-700/50 hover:bg-purple-600 rounded-lg transition-colors group"
+                                        title="Download AI Response"
+                                    >
+                                        <svg class="w-3 h-3 text-slate-300 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </transition>
             </section>
 
             <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
@@ -227,22 +376,12 @@
                 <section
                     class="glass p-6 rounded-3xl animate__animated animate__fadeInLeft"
                 >
-                    <h2
-                        class="text-xl font-semibold mb-6 flex items-center gap-2"
-                    >
-                        <svg
-                            class="w-6 h-6 text-emerald-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"
-                            />
-                        </svg>
+                    <h2 class="text-xl font-semibold mb-6 flex items-center gap-3">
+                        <div class="p-2 bg-emerald-500/10 rounded-lg">
+                            <svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                            </svg>
+                        </div>
                         System Status
                     </h2>
 
@@ -382,37 +521,27 @@
                 <section
                     class="glass p-6 rounded-3xl animate__animated animate__fadeInRight flex flex-col"
                 >
-                    <h2
-                        class="text-xl font-semibold mb-6 flex items-center gap-2"
-                    >
-                        <svg
-                            class="w-6 h-6 text-slate-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                            />
-                        </svg>
+                    <h2 class="text-xl font-semibold mb-6 flex items-center gap-3">
+                        <div class="p-2 bg-slate-500/10 rounded-lg">
+                            <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
                         System Logs
                     </h2>
 
-                    <div class="flex-1 relative">
+                    <div class="flex-1 min-h-[350px] md:min-h-0 bg-slate-900/50 rounded-2xl border border-slate-800 p-2 relative">
                         <div
-                            class="absolute inset-0 bg-slate-900/50 rounded-2xl border border-slate-800 overflow-y-auto"
+                            class="absolute inset-2 overflow-y-auto pr-3"
                         >
                             <table class="w-full text-xs text-left">
                                 <thead
                                     class="text-[10px] uppercase bg-slate-800/80 backdrop-blur-md text-slate-400 sticky top-0"
                                 >
                                     <tr>
-                                        <th class="px-4 py-2">Time</th>
+                                        <th class="px-4 py-2 rounded-l-md">Time</th>
                                         <th class="px-4 py-2">Level</th>
-                                        <th class="px-4 py-2">Message</th>
+                                        <th class="px-4 py-2 rounded-r-md">Message</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-800">
@@ -457,26 +586,13 @@
             <section
                 class="glass p-6 rounded-3xl mt-8 animate__animated animate__fadeInUp"
             >
-                <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
-                    <svg
-                        class="w-6 h-6 text-blue-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                    </svg>
+                <h2 class="text-xl font-semibold mb-6 flex items-center gap-3">
+                    <div class="p-2 bg-blue-500/10 rounded-lg">
+                        <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
                     System Settings
                 </h2>
 
@@ -490,7 +606,7 @@
                             <input
                                 v-model="config.api_key"
                                 :type="showApiKey ? 'text' : 'password'"
-                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
                                 placeholder="vgas-xxxx-xxxx-xxxx-xxxx"
                             />
                             <button
@@ -512,6 +628,12 @@
                                         stroke-linecap="round"
                                         stroke-linejoin="round"
                                         d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l8.55 8.55m3.228 3.228l3 3m-3.228-3.228l-8.55-8.55"
+                                    />
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="1.5"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                                     />
                                 </svg>
                                 <!-- Eye (Show) Icon -->
@@ -609,20 +731,6 @@
                     <a href="https://vgas.cloud" target="_blank" class="text-xs font-bold text-slate-500 hover:text-purple-400 transition-colors tracking-widest flex items-center gap-2">
                         vgas.cloud
                     </a>
-                    <div class="w-1 h-1 bg-slate-800 rounded-full"></div>
-                    <div class="flex items-center gap-3">
-                        <span class="text-[10px] font-black text-slate-600 tracking-[0.3em]">
-                            Version {{ telemetry.system.version }}
-                        </span>
-                        <!-- Update Badge -->
-                        <button 
-                            v-if="telemetry.system.update_available"
-                            @click="performUpdate"
-                            class="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-[9px] font-black rounded uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all animate-pulse"
-                        >
-                            Update v{{ telemetry.system.latest_version }}
-                        </button>
-                    </div>
                 </div>
             </footer>
         </div>
@@ -632,6 +740,7 @@
 
             createApp({
                 setup() {
+                    const initialized = ref(false)
                     const connected = ref(false)
                     const loading = ref(false)
                     const showApiKey = ref(false)
@@ -654,7 +763,12 @@
                         status: '',
                         step: 'idle',
                         audio_state: 'idle',
-                        has_error: false
+                        has_error: false,
+                        workflow_finished: false,
+                        assets: {
+                            image: null,
+                            audio: null
+                        }
                     })
 
                     const visionSteps = {
@@ -689,6 +803,8 @@
                                     ...telemetry.value,
                                     ...payload.data
                                 }
+                                // System is considered initialized once first data arrives
+                                if (!initialized.value) initialized.value = true
                             } else if (payload.type === 'notification') {
                                 // Add to toast (temporary)
                                 addNotification(
@@ -826,35 +942,46 @@
                         }
                     }
 
+                    const downloadAudio = () => {
+                        if (!vision.value.assets.audio) return
+                        
+                        const link = document.createElement('a')
+                        link.href = 'data:audio/wav;base64,' + vision.value.assets.audio
+                        link.download = `vgas_response_${new Date().getTime()}.wav`
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                        addNotification("Audio download started", "info")
+                    }
+
                     const isStepCompleted = (step) => {
                         const steps = ['camera', 'ai', 'audio', 'idle']
                         const currentIndex = steps.indexOf(vision.value.step)
                         const stepIndex = steps.indexOf(step)
                         
-                        // If system is in initial idle state (no status or System Ready)
-                        if (vision.value.step === 'idle' && (!vision.value.status || vision.value.status === 'System Ready' || vision.value.status === '')) {
-                            return false
+                        // If workflow finished successfully
+                        if (vision.value.workflow_finished && !vision.value.has_error) {
+                            return step !== 'idle' || vision.value.status === 'Analysis Completed Successfully'
                         }
 
-                        // Handle Success finish
-                        if (!vision.value.is_processing && !vision.value.has_error && vision.value.step === 'idle' && vision.value.status === 'Analysis Completed') {
-                            return true
-                        }
-
-                        // Handle Error finish: Steps before the failed step are green
+                        // If error occurred, steps before the error are completed
                         if (vision.value.has_error) {
                             return stepIndex < currentIndex
                         }
 
-                        // During processing, only steps before the current one are completed
-                        return currentIndex > stepIndex
+                        // During processing
+                        if (vision.value.is_processing) {
+                            return stepIndex < currentIndex
+                        }
+
+                        return false
                     }
 
                     const getStepCircleClass = (step) => {
-                        const base = 'bg-slate-900 border-slate-800 text-slate-600'
-                        const active = 'bg-purple-600/10 border-purple-500 text-purple-400 scale-125 shadow-purple-500/30'
+                        const base = 'bg-slate-800 border-slate-700 text-slate-400'
+                        const active = 'bg-purple-900 border-purple-500 text-purple-400 scale-110 shadow-lg shadow-purple-500/20'
                         const completed = 'bg-emerald-500 border-emerald-500 text-white'
-                        const failed = 'bg-red-500 border-red-500 text-white animate__animated animate__shakeX'
+                        const failed = 'bg-red-500 border-red-500 text-white'
 
                         if (vision.value.has_error && vision.value.step === step) return failed
                         if (isStepCompleted(step)) return completed
@@ -863,6 +990,7 @@
                     }
 
                     const getStepTextClass = (step) => {
+                        if (vision.value.has_error && vision.value.step === step) return 'text-red-400 font-black'
                         if (isStepCompleted(step)) return 'text-emerald-400 font-black'
                         if (vision.value.step === step && vision.value.is_processing) return 'text-purple-400 font-black'
                         return 'text-slate-600 font-bold'
@@ -914,7 +1042,9 @@
                         resetVision,
                         sendAudioCommand,
                         checkUpdates,
-                        performUpdate
+                        performUpdate,
+                        downloadAudio,
+                        initialized
                     }
                 }
             }).mount('#app')
