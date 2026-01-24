@@ -122,8 +122,18 @@ class VisionModule(BaseModule):
         
         config_module = self.manager.modules.get("config")
         api_key = config_module.config.get("api_key", "") if config_module else ""
-        
-        files = {'file': ('image.jpg', img_byte_arr, 'image/jpeg')}
+        img_data = img_byte_arr.getvalue()
+
+        # Run the blocking request in a thread to keep the event loop alive
+        loop = asyncio.get_event_loop()
+        try:
+            return await loop.run_in_executor(None, self._do_analyze_request, img_data, api_key)
+        except Exception as e:
+            print(f"Analyze thread error: {e}")
+            return None, str(e)
+
+    def _do_analyze_request(self, img_data, api_key):
+        files = {'file': ('image.jpg', io.BytesIO(img_data), 'image/jpeg')}
         params = {'api_key': api_key}
         
         try:

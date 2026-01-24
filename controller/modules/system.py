@@ -9,6 +9,7 @@ class SystemModule(BaseModule):
         self.CURRENT_VERSION = "1.2.4"
         self.latest_version = "1.2.4"
         self.update_available = False
+        self.last_telemetry = {}
 
     def get_cpu_temp(self):
         # Specific for Raspberry Pi
@@ -50,29 +51,31 @@ class SystemModule(BaseModule):
                 # CPU Temp
                 cpu_temp = self.get_cpu_temp()
 
+                self.last_telemetry = {
+                    "battery": {
+                        "percent": bat_percent,
+                        "charging": power_plugged
+                    },
+                    "ram": {
+                        "percent": ram_percent,
+                        "total": ram_total,
+                        "used": ram_used
+                    },
+                    "disk": {
+                        "percent": disk_percent,
+                        "total": disk_total,
+                        "used": disk_used
+                    },
+                    "cpu": {
+                        "temp": round(cpu_temp, 1)
+                    },
+                    "version": self.CURRENT_VERSION,
+                    "latest_version": self.latest_version,
+                    "update_available": self.update_available
+                }
+                
                 await self.manager.update_telemetry({
-                    "system": {
-                        "battery": {
-                            "percent": bat_percent,
-                            "charging": power_plugged
-                        },
-                        "ram": {
-                            "percent": ram_percent,
-                            "total": ram_total,
-                            "used": ram_used
-                        },
-                        "disk": {
-                            "percent": disk_percent,
-                            "total": disk_total,
-                            "used": disk_used
-                        },
-                        "cpu": {
-                            "temp": round(cpu_temp, 1)
-                        },
-                        "version": self.CURRENT_VERSION,
-                        "latest_version": self.latest_version,
-                        "update_available": self.update_available
-                    }
+                    "system": self.last_telemetry
                 })
                 
                 if bat_percent < 20:
@@ -116,11 +119,7 @@ class SystemModule(BaseModule):
         return {"error": "Unknown command"}
 
     def get_state(self):
-        return {
-            "version": self.CURRENT_VERSION,
-            "latest_version": self.latest_version,
-            "update_available": self.update_available
-        }
+        return self.last_telemetry
 
     async def stop(self):
         pass
