@@ -23,9 +23,6 @@ wheels/
 venv/
 .env
 
-# Configuration
-config.json
-
 # IDEs
 .vscode/
 .idea/

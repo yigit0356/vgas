@@ -53,6 +53,28 @@
                 opacity: 0;
                 transform: translateX(30px);
             }
+
+            /* Custom Scrollbar UI */
+            ::-webkit-scrollbar {
+                width: 5px;
+                height: 5px;
+            }
+            ::-webkit-scrollbar-track {
+                background: rgba(15, 23, 42, 0.5);
+            }
+            ::-webkit-scrollbar-thumb {
+                background: rgba(71, 85, 105, 0.5);
+                border-radius: 10px;
+            }
+            ::-webkit-scrollbar-thumb:hover {
+                background: rgba(96, 165, 250, 0.5);
+            }
+
+            /* Firefox Scrollbar Support */
+            * {
+                scrollbar-width: thin;
+                scrollbar-color: rgba(71, 85, 105, 0.5) rgba(15, 23, 42, 0.5);
+            }
         </style>
     </head>
     <body>
@@ -77,12 +99,130 @@
                         class="w-3 h-3 rounded-full animate-pulse"
                     ></div>
                     <span class="text-sm font-medium"
-                        >{{ connected ? 'Connected' : 'Disconnected' }}</span
+                        >Web Socket {{ connected ? 'Connected' : 'Disconnected' }}</span
                     >
                 </div>
             </header>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Vision Engine Section -->
+            <section
+                class="glass p-8 rounded-3xl animate__animated animate__fadeInDown overflow-hidden"
+            >
+                <div class="flex justify-between items-center mb-10">
+                    <h2 class="text-xl font-semibold flex items-center gap-3">
+                        <div class="p-2 bg-purple-500/10 rounded-lg">
+                            <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                        </div>
+                        Vision Engine
+                    </h2>
+                    
+                    <div class="flex items-center gap-3">
+                        <!-- Reset / New Analysis Button -->
+                        <button 
+                            v-if="vision.is_processing || (vision.status && vision.status !== '' && vision.status !== 'System Ready')"
+                            @click="resetVision"
+                            class="px-6 py-2 rounded-full text-xs font-bold transition-all bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 animate__animated animate__fadeIn"
+                        >
+                            {{ vision.is_processing ? 'Cancel & Reset' : 'New Analysis' }}
+                        </button>
+
+                        <!-- Run Button -->
+                        <button 
+                            v-else
+                            @click="triggerVision"
+                            class="px-8 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/40 transform hover:scale-105 active:scale-95"
+                        >
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Run Analysis
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Process Steps Visualizer -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-8 relative pb-4">
+                    <div
+                        v-for="(label, step) in visionSteps"
+                        :key="step"
+                        class="relative z-10 flex flex-col items-center transition-all duration-700"
+                    >
+                        <!-- Circle Indicator -->
+                        <div
+                            :class="getStepCircleClass(step)"
+                            class="w-14 h-14 rounded-full flex items-center justify-center mb-4 transition-all duration-700 border-2 shadow-xl relative"
+                        >
+                            <div v-if="vision.step === step && vision.is_processing" class="absolute inset-0 rounded-full border-2 border-purple-400 animate-ping opacity-20"></div>
+                            
+                            <svg v-if="isStepCompleted(step)" class="w-7 h-7" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                            </svg>
+                            <span v-else class="text-sm font-black">{{ stepIndex(step) }}</span>
+                        </div>
+                        
+                    <p 
+                        :class="[
+                            getStepTextClass(step),
+                            vision.has_error && vision.step === step ? 'text-red-400' : ''
+                        ]"
+                        class="text-[10px] uppercase font-black tracking-[0.2em] text-center"
+                    >
+                        {{ label }}
+                    </p>
+                    </div>
+                </div>
+
+                <div
+                    class="mt-10 p-8 bg-slate-900/60 rounded-3xl border flex flex-col items-center gap-6 min-h-[140px] justify-center relative overflow-hidden transition-all duration-500"
+                    :class="vision.has_error ? 'border-red-500/30 bg-red-500/5' : 'border-slate-800'"
+                >
+                    <div v-if="vision.is_processing" class="absolute top-0 left-0 h-1 bg-purple-500 animate-[shimmer_2s_infinite]"></div>
+                    <div v-if="vision.has_error" class="absolute top-0 left-0 h-1 w-full bg-red-500"></div>
+                    
+                    <p 
+                        :class="vision.has_error ? 'text-red-400' : 'text-slate-100'"
+                        class="text-base font-semibold transition-all duration-500 text-center max-w-lg"
+                    >
+                        {{ vision.status || 'System Standby - Ready for Command' }}
+                    </p>
+                    
+                    <!-- Audio Controls Area -->
+                    <transition name="audio-controls">
+                        <div v-if="vision.step === 'audio' && vision.audio_state !== 'idle'" class="flex items-center gap-5">
+                            <div class="flex items-center gap-2 bg-slate-800/80 backdrop-blur-xl p-2 rounded-full border border-slate-700 shadow-2xl">
+                                <!-- Rewind -->
+                                <button @click="sendAudioCommand('audio_backward')" class="p-3 hover:bg-slate-700 rounded-full transition-all text-slate-400 hover:text-white" title="Restart Audio">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.334 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
+                                </button>
+
+                                <!-- Play/Pause Central Button -->
+                                <button 
+                                    v-if="vision.audio_state === 'playing'"
+                                    @click="sendAudioCommand('audio_pause')"
+                                    class="p-4 bg-purple-600 hover:bg-purple-500 rounded-full transition-all text-white shadow-lg shadow-purple-900/40 transform hover:scale-105 active:scale-95"
+                                >
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6" /></svg>
+                                </button>
+                                <button 
+                                    v-else
+                                    @click="sendAudioCommand('audio_resume')"
+                                    class="p-4 bg-emerald-600 hover:bg-emerald-500 rounded-full transition-all text-white shadow-lg shadow-emerald-900/40 transform hover:scale-105 active:scale-95"
+                                >
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /></svg>
+                                </button>
+
+                                <!-- Stop -->
+                                <button @click="sendAudioCommand('audio_stop')" class="p-3 hover:bg-red-500/20 rounded-full transition-all text-slate-400 hover:text-red-400" title="Close Audio">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                            </div>
+                        </div>
+                    </transition>
+                </div>
+            </section>
+
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
                 <!-- System Status Card -->
                 <section
                     class="glass p-6 rounded-3xl animate__animated animate__fadeInLeft"
@@ -106,7 +246,7 @@
                         System Status
                     </h2>
 
-                    <div class="grid grid-cols-3 gap-3">
+                    <div class="grid grid-cols-2 gap-3">
                         <!-- CPU Temp -->
                         <div
                             class="p-4 rounded-2xl bg-slate-800/30 border border-slate-700/50 flex flex-col justify-between"
@@ -116,7 +256,7 @@
                             >
                                 CPU
                             </p>
-                            <p class="text-2xl font-bold text-orange-400 mb-2">
+                            <p class="text-xl font-bold text-orange-400 mb-2">
                                 {{ telemetry.system.cpu.temp }}°C
                             </p>
                             <div
@@ -125,28 +265,6 @@
                                 <div
                                     class="h-full bg-orange-500 transition-all duration-1000"
                                     :style="{ width: (telemetry.system.cpu.temp / 100 * 100) + '%' }"
-                                ></div>
-                            </div>
-                        </div>
-
-                        <!-- RAM Usage -->
-                        <div
-                            class="p-4 rounded-2xl bg-slate-800/30 border border-slate-700/50 flex flex-col justify-between"
-                        >
-                            <p
-                                class="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-2"
-                            >
-                                RAM
-                            </p>
-                            <p class="text-2xl font-bold text-blue-400 mb-2">
-                                %{{ telemetry.system.ram.percent }}
-                            </p>
-                            <div
-                                class="h-1 w-full bg-slate-700/50 rounded-full overflow-hidden mt-auto"
-                            >
-                                <div
-                                    class="h-full bg-blue-500 transition-all duration-1000"
-                                    :style="{ width: telemetry.system.ram.percent + '%' }"
                                 ></div>
                             </div>
                         </div>
@@ -168,7 +286,7 @@
                                 >
                             </div>
                             <p
-                                class="text-2xl font-bold mb-2"
+                                class="text-xl font-bold mb-2"
                                 :class="telemetry.system.battery.percent > 20 ? 'text-emerald-400' : 'text-red-400'"
                             >
                                 %{{ telemetry.system.battery.percent }}
@@ -184,17 +302,91 @@
                             </div>
                         </div>
                     </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- Detailed RAM Usage -->
+                        <div
+                            class="mt-6 p-4 rounded-2xl bg-slate-800/20 border border-slate-700/30"
+                        >
+                            <div class="flex justify-between items-end mb-3">
+                                <div>
+                                    <p
+                                        class="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-1"
+                                    >
+                                        RAM Memory
+                                    </p>
+                                    <p
+                                        class="text-xs font-medium text-slate-300"
+                                    >
+                                        {{ telemetry.system.ram.used }} GB
+                                        <span class="text-slate-600">/</span> {{
+                                        telemetry.system.ram.total }} GB
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xl font-bold text-blue-400">
+                                        %{{ telemetry.system.ram.percent }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div
+                                class="h-2 w-full bg-slate-700/50 rounded-full overflow-hidden"
+                            >
+                                <div
+                                    class="h-full bg-blue-500 transition-all duration-1000"
+                                    :style="{ width: telemetry.system.ram.percent + '%' }"
+                                ></div>
+                            </div>
+                        </div>
+
+                        <!-- Detailed Disk Usage -->
+                        <div
+                            class="mt-6 p-4 rounded-2xl bg-slate-800/20 border border-slate-700/30"
+                        >
+                            <div class="flex justify-between items-end mb-3">
+                                <div>
+                                    <p
+                                        class="text-[10px] uppercase text-slate-500 font-bold tracking-wider mb-1"
+                                    >
+                                        Disk Storage
+                                    </p>
+                                    <p
+                                        class="text-xs font-medium text-slate-300"
+                                    >
+                                        {{ telemetry.system.disk.used }} GB
+                                        <span class="text-slate-600">/</span> {{
+                                        telemetry.system.disk.total }} GB
+                                    </p>
+                                </div>
+                                <div class="text-right">
+                                    <p
+                                        class="text-xl font-bold text-purple-400"
+                                    >
+                                        %{{ telemetry.system.disk.percent }}
+                                    </p>
+                                </div>
+                            </div>
+                            <div
+                                class="h-2 w-full bg-slate-700/50 rounded-full overflow-hidden"
+                            >
+                                <div
+                                    class="h-full bg-purple-500 transition-all duration-1000"
+                                    :style="{ width: telemetry.system.disk.percent + '%' }"
+                                ></div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
-                <!-- API Configuration Card -->
+                <!-- System Logs Section (Now in the grid) -->
                 <section
-                    class="glass p-6 rounded-3xl animate__animated animate__fadeInRight"
+                    class="glass p-6 rounded-3xl animate__animated animate__fadeInRight flex flex-col"
                 >
                     <h2
                         class="text-xl font-semibold mb-6 flex items-center gap-2"
                     >
                         <svg
-                            class="w-6 h-6 text-blue-400"
+                            class="w-6 h-6 text-slate-400"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -203,182 +395,71 @@
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                                 stroke-width="2"
-                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                            />
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                             />
                         </svg>
-                        Settings
+                        System Logs
                     </h2>
 
-                    <div class="space-y-4">
-                        <div>
-                            <label
-                                class="block text-sm font-medium text-slate-300 mb-2"
-                                >Primary API Key</label
-                            >
-                            <div class="relative">
-                                <input
-                                    v-model="config.api_key"
-                                    :type="showApiKey ? 'text' : 'password'"
-                                    class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
-                                    placeholder="sk-xxxxxxxxxxxxxxx"
-                                />
-                                <button
-                                    @click="showApiKey = !showApiKey"
-                                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1"
-                                >
-                                    <svg
-                                        v-if="showApiKey"
-                                        class="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7 1.274-4.057 5.064-7 9.542-7 1.225 0 2.385.271 3.425.755M16.5 16.5l4.5 4.5M12 15a3 3 0 110-6 3 3 0 010 6zM3 3l18 18"
-                                        />
-                                    </svg>
-                                    <svg
-                                        v-else
-                                        class="w-5 h-5"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                                        />
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            stroke-width="2"
-                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                                        />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                        <button
-                            @click="saveConfig"
-                            class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2"
+                    <div class="flex-1 relative">
+                        <div
+                            class="absolute inset-0 bg-slate-900/50 rounded-2xl border border-slate-800 overflow-y-auto"
                         >
-                            <span v-if="loading">Saving...</span>
-                            <span v-else>Update</span>
-                        </button>
+                            <table class="w-full text-xs text-left">
+                                <thead
+                                    class="text-[10px] uppercase bg-slate-800/80 backdrop-blur-md text-slate-400 sticky top-0"
+                                >
+                                    <tr>
+                                        <th class="px-4 py-2">Time</th>
+                                        <th class="px-4 py-2">Level</th>
+                                        <th class="px-4 py-2">Message</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-800">
+                                    <tr
+                                        v-for="log in logHistory"
+                                        :key="log.id"
+                                        class="hover:bg-slate-800/30 transition-colors"
+                                    >
+                                        <td
+                                            class="px-4 py-2 text-slate-500 whitespace-nowrap"
+                                        >
+                                            {{ log.time }}
+                                        </td>
+                                        <td class="px-4 py-2">
+                                            <span
+                                                :class="getBadgeClass(log.level)"
+                                                class="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase"
+                                            >
+                                                {{ log.level }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2 text-slate-300">
+                                            {{ log.message }}
+                                        </td>
+                                    </tr>
+                                    <tr v-if="logHistory.length === 0">
+                                        <td
+                                            colspan="3"
+                                            class="px-4 py-8 text-center text-slate-500 italic"
+                                        >
+                                            Waiting for logs...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
             </div>
 
-            <!-- Vision Engine Section -->
-            <section
-                class="glass p-8 rounded-3xl mt-8 animate__animated animate__fadeInUp overflow-hidden"
-            >
-                <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-xl font-semibold flex items-center gap-2">
-                        <svg
-                            class="w-6 h-6 text-purple-400"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                        </svg>
-                        Vision Engine
-                    </h2>
-                    <div v-if="vision.is_processing" class="flex gap-1">
-                        <span
-                            class="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
-                        ></span>
-                        <span
-                            class="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
-                            style="animation-delay: 0.2s"
-                        ></span>
-                        <span
-                            class="w-2 h-2 bg-purple-500 rounded-full animate-bounce"
-                            style="animation-delay: 0.4s"
-                        ></span>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 relative">
-                    <!-- Progress Line (Desktop) -->
-                    <div
-                        class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-slate-800 -translate-y-1/2 z-0"
-                    ></div>
-
-                    <!-- Steps -->
-                    <div
-                        v-for="(label, step) in visionSteps"
-                        :key="step"
-                        class="relative z-10 flex flex-col items-center"
-                    >
-                        <div
-                            :class="getStepCircleClass(step)"
-                            class="w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-all duration-500 border-2 shadow-lg"
-                        >
-                            <svg
-                                v-if="isStepCompleted(step)"
-                                class="w-6 h-6"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                            >
-                                <path
-                                    fill-rule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clip-rule="evenodd"
-                                />
-                            </svg>
-                            <span v-else class="text-sm font-bold"
-                                >{{ stepIndex(step) }}</span
-                            >
-                        </div>
-                        <p
-                            :class="vision.step === step ? 'text-purple-400 font-bold' : 'text-slate-500'"
-                            class="text-xs uppercase tracking-tighter text-center"
-                        >
-                            {{ label }}
-                        </p>
-                    </div>
-                </div>
-
-                <div
-                    class="mt-8 p-4 bg-slate-900/40 rounded-2xl border border-slate-800/50 text-center"
-                >
-                    <p class="text-sm font-medium text-slate-300">
-                        {{ vision.status || 'System Idle - Waiting for physical button press (GPIO 17)' }}
-                    </p>
-                </div>
-            </section>
-
-            <!-- System Logs Section -->
+            <!-- API Configuration Card (Moved to bottom) -->
             <section
                 class="glass p-6 rounded-3xl mt-8 animate__animated animate__fadeInUp"
             >
                 <h2 class="text-xl font-semibold mb-6 flex items-center gap-2">
                     <svg
-                        class="w-6 h-6 text-slate-400"
+                        class="w-6 h-6 text-blue-400"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -387,59 +468,83 @@
                             stroke-linecap="round"
                             stroke-linejoin="round"
                             stroke-width="2"
-                            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                        />
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                         />
                     </svg>
-                    System Logs & Notifications
+                    System Settings
                 </h2>
 
-                <div
-                    class="bg-slate-900/50 rounded-2xl overflow-hidden border border-slate-800"
-                >
-                    <table class="w-full text-sm text-left">
-                        <thead
-                            class="text-xs uppercase bg-slate-800/50 text-slate-400"
+                <div class="space-y-4">
+                    <div>
+                        <label
+                            class="block text-sm font-medium text-slate-300 mb-2"
+                            >Primary API Key</label
                         >
-                            <tr>
-                                <th class="px-6 py-3">Time</th>
-                                <th class="px-6 py-3">Level</th>
-                                <th class="px-6 py-3">Message</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-800">
-                            <tr
-                                v-for="log in logHistory"
-                                :key="log.id"
-                                class="hover:bg-slate-800/30 transition-colors"
+                        <div class="relative">
+                            <input
+                                v-model="config.api_key"
+                                :type="showApiKey ? 'text' : 'password'"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                                placeholder="vgas-xxxx-xxxx-xxxx-xxxx"
+                            />
+                            <button
+                                @click="showApiKey = !showApiKey"
+                                type="button"
+                                class="absolute right-0 top-0 bottom-0 flex items-center justify-center text-slate-500 hover:text-slate-300 transition-all px-3 z-10"
+                                title="Toggle API Key Visibility"
                             >
-                                <td
-                                    class="px-6 py-4 text-slate-500 whitespace-nowrap"
+                                <!-- Eye Off (Hide) Icon -->
+                                <svg
+                                    v-if="showApiKey"
+                                    class="w-5 h-5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke-width="1.5"
+                                    stroke="currentColor"
                                 >
-                                    {{ log.time }}
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span
-                                        :class="getBadgeClass(log.level)"
-                                        class="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider"
-                                    >
-                                        {{ log.level }}
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-slate-300">
-                                    {{ log.message }}
-                                </td>
-                            </tr>
-                            <tr v-if="logHistory.length === 0">
-                                <td
-                                    colspan="3"
-                                    class="px-6 py-12 text-center text-slate-500 italic"
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.451 10.451 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l8.55 8.55m3.228 3.228l3 3m-3.228-3.228l-8.55-8.55"
+                                    />
+                                </svg>
+                                <!-- Eye (Show) Icon -->
+                                <svg
+                                    v-else
+                                    class="w-5 h-5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
                                 >
-                                    No logs recorded yet. Waiting for system
-                                    events...
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                                    />
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <button
+                        @click="saveConfig"
+                        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-blue-900/20 transition-all flex items-center justify-center gap-2"
+                    >
+                        <span v-if="loading">Saving...</span>
+                        <span v-else>Update Configuration</span>
+                    </button>
                 </div>
             </section>
 
@@ -497,8 +602,29 @@
                             &times;
                         </button>
                     </div>
-                </transition-group>
             </div>
+            <!-- Footer Section -->
+            <footer class="mt-12 pb-8 flex flex-col items-center gap-4 animate__animated animate__fadeInUp" style="animation-delay: 1s;">
+                <div class="flex items-center gap-6">
+                    <a href="https://vgas.cloud" target="_blank" class="text-xs font-bold text-slate-500 hover:text-purple-400 transition-colors tracking-widest flex items-center gap-2">
+                        vgas.cloud
+                    </a>
+                    <div class="w-1 h-1 bg-slate-800 rounded-full"></div>
+                    <div class="flex items-center gap-3">
+                        <span class="text-[10px] font-black text-slate-600 tracking-[0.3em]">
+                            Version {{ telemetry.system.version }}
+                        </span>
+                        <!-- Update Badge -->
+                        <button 
+                            v-if="telemetry.system.update_available"
+                            @click="performUpdate"
+                            class="px-2 py-0.5 bg-emerald-500/10 border border-emerald-500/50 text-emerald-400 text-[9px] font-black rounded uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all animate-pulse"
+                        >
+                            Update v{{ telemetry.system.latest_version }}
+                        </button>
+                    </div>
+                </div>
+            </footer>
         </div>
 
         <script>
@@ -513,8 +639,12 @@
                     const telemetry = ref({
                         system: {
                             cpu: { temp: 0 },
-                            ram: { percent: 0 },
-                            battery: { percent: 0, charging: false }
+                            ram: { percent: 0, total: 0, used: 0 },
+                            disk: { percent: 0, total: 0, used: 0 },
+                            battery: { percent: 0, charging: false },
+                            version: '1.2.4',
+                            latest_version: '1.2.4',
+                            update_available: false
                         }
                     })
                     const notifications = ref([])
@@ -522,7 +652,9 @@
                     const vision = ref({
                         is_processing: false,
                         status: '',
-                        step: 'idle'
+                        step: 'idle',
+                        audio_state: 'idle',
+                        has_error: false
                     })
 
                     const visionSteps = {
@@ -558,9 +690,11 @@
                                     ...payload.data
                                 }
                             } else if (payload.type === 'notification') {
+                                // Add to toast (temporary)
                                 addNotification(
                                     payload.data.message,
-                                    payload.data.level
+                                    payload.data.level,
+                                    payload.data.time
                                 )
                             } else if (payload.type === 'vision_update') {
                                 vision.value = {
@@ -604,17 +738,75 @@
                         }
                     }
 
-                    const addNotification = (message, level = 'info') => {
+                    const triggerVision = () => {
+                        if (ws && connected.value) {
+                            ws.send(JSON.stringify({
+                                type: 'command',
+                                module: 'vision',
+                                command: 'trigger_vision'
+                            }))
+                        }
+                    }
+
+                    const checkUpdates = () => {
+                        if (ws && connected.value) {
+                            ws.send(JSON.stringify({
+                                type: 'command',
+                                module: 'system',
+                                command: 'check_updates'
+                            }))
+                        }
+                    }
+
+                    const performUpdate = () => {
+                        if (ws && connected.value) {
+                            addNotification("System update initiated...", "info")
+                            ws.send(JSON.stringify({
+                                type: 'command',
+                                module: 'system',
+                                command: 'perform_update'
+                            }))
+                        }
+                    }
+
+                    const resetVision = () => {
+                        if (ws && connected.value) {
+                            ws.send(JSON.stringify({
+                                type: 'command',
+                                module: 'vision',
+                                command: 'reset_vision'
+                            }))
+                        }
+                    }
+
+                    const sendAudioCommand = (cmd) => {
+                        if (ws && connected.value) {
+                            ws.send(JSON.stringify({
+                                type: 'command',
+                                module: 'vision',
+                                command: cmd
+                            }))
+                        }
+                    }
+
+                    const addNotification = (message, level = 'info', backendTime = null) => {
                         const id = Date.now()
-                        const time = new Date().toLocaleTimeString()
+                        const time = backendTime || new Date().toLocaleTimeString()
 
-                        // Add to toast notifications
-                        notifications.value.push({ id, message, level })
-                        setTimeout(() => removeNotif(id), 5000)
+                        // Check if this log already exists in history (to prevent duplicates from backend sync)
+                        const exists = logHistory.value.some(l => l.message === message && l.time === time)
+                        
+                        if (!exists) {
+                            // Add to toast notifications (only for fresh logs, not historical sync)
+                            if (!backendTime) {
+                                notifications.value.push({ id, message, level })
+                                setTimeout(() => removeNotif(id), 5000)
+                            }
 
-                        // Add to log history
-                        logHistory.value.unshift({ id, message, level, time })
-                        if (logHistory.value.length > 50) logHistory.value.pop()
+                            // Add to log history
+                            logHistory.value.unshift({ id, message, level, time })
+                            if (logHistory.value.length > 50) logHistory.value.pop()
+                        }
                     }
 
                     const removeNotif = (id) => {
@@ -634,29 +826,46 @@
                         }
                     }
 
-                    const getStepCircleClass = (step) => {
-                        const base =
-                            'bg-slate-900 border-slate-700 text-slate-500'
-                        const active =
-                            'bg-purple-500/20 border-purple-500 text-purple-400 scale-110 shadow-purple-500/20'
-                        const completed =
-                            'bg-emerald-500 border-emerald-500 text-white'
-
-                        if (vision.value.step === step) return active
-                        if (isStepCompleted(step)) return completed
-                        return base
-                    }
-
                     const isStepCompleted = (step) => {
                         const steps = ['camera', 'ai', 'audio', 'idle']
                         const currentIndex = steps.indexOf(vision.value.step)
                         const stepIndex = steps.indexOf(step)
-                        return (
-                            currentIndex > stepIndex ||
-                            (vision.value.step === 'idle' &&
-                                vision.value.is_processing === false &&
-                                step !== 'idle')
-                        )
+                        
+                        // If system is in initial idle state (no status or System Ready)
+                        if (vision.value.step === 'idle' && (!vision.value.status || vision.value.status === 'System Ready' || vision.value.status === '')) {
+                            return false
+                        }
+
+                        // Handle Success finish
+                        if (!vision.value.is_processing && !vision.value.has_error && vision.value.step === 'idle' && vision.value.status === 'Analysis Completed') {
+                            return true
+                        }
+
+                        // Handle Error finish: Steps before the failed step are green
+                        if (vision.value.has_error) {
+                            return stepIndex < currentIndex
+                        }
+
+                        // During processing, only steps before the current one are completed
+                        return currentIndex > stepIndex
+                    }
+
+                    const getStepCircleClass = (step) => {
+                        const base = 'bg-slate-900 border-slate-800 text-slate-600'
+                        const active = 'bg-purple-600/10 border-purple-500 text-purple-400 scale-125 shadow-purple-500/30'
+                        const completed = 'bg-emerald-500 border-emerald-500 text-white'
+                        const failed = 'bg-red-500 border-red-500 text-white animate__animated animate__shakeX'
+
+                        if (vision.value.has_error && vision.value.step === step) return failed
+                        if (isStepCompleted(step)) return completed
+                        if (vision.value.step === step && vision.value.is_processing) return active
+                        return base
+                    }
+
+                    const getStepTextClass = (step) => {
+                        if (isStepCompleted(step)) return 'text-emerald-400 font-black'
+                        if (vision.value.step === step && vision.value.is_processing) return 'text-purple-400 font-black'
+                        return 'text-slate-600 font-bold'
                     }
 
                     const stepIndex = (step) => {
@@ -678,6 +887,9 @@
                     onMounted(() => {
                         connectWS()
                         fetchConfig()
+                        
+                        // Check for updates after a short delay
+                        setTimeout(checkUpdates, 3000)
                     })
 
                     return {
@@ -691,12 +903,18 @@
                         vision,
                         visionSteps,
                         getStepCircleClass,
+                        getStepTextClass,
                         isStepCompleted,
                         stepIndex,
                         saveConfig,
                         removeNotif,
                         getNotifClass,
-                        getBadgeClass
+                        getBadgeClass,
+                        triggerVision,
+                        resetVision,
+                        sendAudioCommand,
+                        checkUpdates,
+                        performUpdate
                     }
                 }
             }).mount('#app')

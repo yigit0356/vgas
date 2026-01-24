@@ -1,5 +1,6 @@
 import asyncio
 import os
+import json
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,7 +54,16 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_text()
-            print(f"Received: {data}")
+            try:
+                payload = json.loads(data)
+                if payload.get("type") == "command":
+                    module_name = payload.get("module")
+                    command = payload.get("command")
+                    cmd_data = payload.get("data")
+                    result = await module_manager.execute_module_command(module_name, command, cmd_data)
+                    # Optional: Send result back
+            except Exception as e:
+                print(f"WS Error: {e}")
     except WebSocketDisconnect:
         socket_manager.disconnect(websocket)
 
