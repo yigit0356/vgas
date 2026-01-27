@@ -22,7 +22,11 @@
         />
         <style>
             html {
-                background-color: #0f172a; /* Match the base theme color */
+                background: radial-gradient(
+                    circle at top right,
+                    #1e293b,
+                    #0f172a
+                );
             }
             body {
                 font-family: 'Outfit', sans-serif;
@@ -167,6 +171,26 @@
                 </div>
             </header>
 
+            <!-- Missing Config Warning Banner -->
+            <transition name="fade">
+                <div v-if="!config.api_key || !config.base_url" class="mb-8 p-6 bg-red-500/10 border border-red-500/30 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate__animated animate__pulse animate__infinite animate__slower">
+                    <div class="flex items-center gap-4 text-center md:text-left">
+                        <div class="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center flex-shrink-0">
+                            <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-red-400 uppercase tracking-widest text-sm">System Restricted</h3>
+                            <p class="text-xs text-red-400/70 font-medium">Please configure your Base URL and API Key to enable the Vision Engine.</p>
+                        </div>
+                    </div>
+                    <button @click="scrollToSettings" class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">
+                        Go to Settings
+                    </button>
+                </div>
+            </transition>
+
             <!-- Vision Engine Section -->
             <section
                 class="glass p-8 rounded-3xl animate__animated animate__fadeInDown overflow-hidden"
@@ -205,7 +229,9 @@
                         <button 
                             v-else
                             @click="triggerVision"
-                            class="px-8 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-900/40 transform hover:scale-105"
+                            :disabled="!config.base_url || !config.api_key"
+                            :class="[!config.base_url || !config.api_key ? 'opacity-30 cursor-not-allowed bg-slate-700' : 'bg-purple-600 hover:bg-purple-500 transform hover:scale-105 shadow-purple-900/40 opacity-100']"
+                            class="px-8 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 text-white shadow-lg"
                         >
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             Run Analysis
@@ -534,13 +560,13 @@
                         <div
                             class="absolute inset-2 overflow-y-auto pr-3"
                         >
-                            <table class="w-full text-xs text-left">
+                            <table class="w-full text-xs text-left table-fixed">
                                 <thead
                                     class="text-[10px] uppercase bg-slate-800/80 backdrop-blur-md text-slate-400 sticky top-0"
                                 >
                                     <tr>
-                                        <th class="px-4 py-2 rounded-l-md">Time</th>
-                                        <th class="px-4 py-2">Level</th>
+                                        <th class="px-4 py-2 rounded-l-md w-24">Time</th>
+                                        <th class="px-4 py-2 w-20">Level</th>
                                         <th class="px-4 py-2 rounded-r-md">Message</th>
                                     </tr>
                                 </thead>
@@ -551,7 +577,7 @@
                                         class="hover:bg-slate-800/30 transition-colors"
                                     >
                                         <td
-                                            class="px-4 py-2 text-slate-500 whitespace-nowrap"
+                                            class="px-4 py-3 text-slate-500 truncate"
                                         >
                                             {{ log.time }}
                                         </td>
@@ -563,7 +589,7 @@
                                                 {{ log.level }}
                                             </span>
                                         </td>
-                                        <td class="px-4 py-2 text-slate-300">
+                                        <td class="px-4 py-3 text-slate-300 break-all whitespace-normal">
                                             {{ log.message }}
                                         </td>
                                     </tr>
@@ -584,7 +610,9 @@
 
             <!-- API Configuration Card (Moved to bottom) -->
             <section
+                id="settings-section"
                 class="glass p-6 rounded-3xl mt-8 animate__animated animate__fadeInUp"
+                :class="{'ring-2 ring-red-500/50 shadow-2xl shadow-red-500/10': !config.api_key || !config.base_url}"
             >
                 <h2 class="text-xl font-semibold mb-6 flex items-center gap-3">
                     <div class="p-2 bg-blue-500/10 rounded-lg">
@@ -596,17 +624,34 @@
                     System Settings
                 </h2>
 
-                <div class="space-y-4">
+                <div class="space-y-6">
                     <div>
                         <label
-                            class="block text-sm font-medium text-slate-300 mb-2"
-                            >Primary API Key</label
+                            class="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2"
                         >
+                            Base URL
+                        </label>
+                        <div class="relative">
+                            <input
+                                v-model="config.base_url"
+                                type="text"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                                placeholder="https://vgas.cloud"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                        <label
+                            class="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2"
+                        >
+                            API Key
+                        </label>
                         <div class="relative">
                             <input
                                 v-model="config.api_key"
                                 :type="showApiKey ? 'text' : 'password'"
-                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-mono text-sm"
+                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 pr-12 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
                                 placeholder="vgas-xxxx-xxxx-xxxx-xxxx"
                             />
                             <button
@@ -725,14 +770,6 @@
                         </button>
                     </div>
             </div>
-            <!-- Footer Section -->
-            <footer class="mt-12 pb-8 flex flex-col items-center gap-4 animate__animated animate__fadeInUp" style="animation-delay: 1s;">
-                <div class="flex items-center gap-6">
-                    <a href="https://vgas.cloud" target="_blank" class="text-xs font-bold text-slate-500 hover:text-purple-400 transition-colors tracking-widest flex items-center gap-2">
-                        vgas.cloud
-                    </a>
-                </div>
-            </footer>
         </div>
 
         <script>
@@ -744,7 +781,7 @@
                     const connected = ref(false)
                     const loading = ref(false)
                     const showApiKey = ref(false)
-                    const config = ref({ api_key: '' })
+                    const config = ref({ api_key: '', base_url: '' })
                     const telemetry = ref({
                         system: {
                             cpu: { temp: 0 },
@@ -829,6 +866,10 @@
 
                         ws.onclose = () => {
                             connected.value = false
+                            addNotification(
+                                'Connection Lost: Attempting to re-establish secure link...',
+                                'warning'
+                            )
                             setTimeout(connectWS, 3000)
                         }
                     }
@@ -838,6 +879,7 @@
                             const res = await fetch('/config')
                             config.value = await res.json()
                         } catch (e) {
+                            addNotification("System Config: Failed to retrieve server settings", "warning")
                             console.error('Failed to fetch config', e)
                         }
                     }
@@ -850,10 +892,13 @@
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify(config.value)
                             })
-                            if (res.ok) fetchConfig()
+                            if (res.ok) {
+                                fetchConfig()
+                                addNotification("Security Settings: Configuration saved successfully", "success")
+                            }
                         } catch (e) {
                             addNotification(
-                                'Failed to save configuration',
+                                'Security Settings: Failed to save configuration',
                                 'warning'
                             )
                         } finally {
@@ -873,6 +918,7 @@
 
                     const checkUpdates = () => {
                         if (ws && connected.value) {
+                            addNotification("Update Management: Searching for latest firmware...", "info")
                             ws.send(JSON.stringify({
                                 type: 'command',
                                 module: 'system',
@@ -1051,7 +1097,10 @@
                         checkUpdates,
                         performUpdate,
                         downloadAudio,
-                        initialized
+                        initialized,
+                        scrollToSettings() {
+                            document.getElementById('settings-section').scrollIntoView({ behavior: 'smooth' })
+                        }
                     }
                 }
             }).mount('#app')

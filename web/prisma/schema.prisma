@@ -1,0 +1,45 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+}
+
+model SystemConfig {
+    id    String @id @default("current")
+    Value Json
+}
+
+model SystemPrompt {
+    id        String   @id @default(cuid())
+    name      String   @unique
+    content   String
+    updatedAt DateTime @updatedAt
+}
+
+model ServiceApiKey {
+    id          String   @id @default(cuid())
+    name        String   @unique // e.g., 'GEMINI', 'ELEVENLABS'
+    key         String
+    isActive    Boolean  @default(true)
+    description String?
+    updatedAt   DateTime @updatedAt
+}
+
+model AppApiKey {
+    id        String   @id @default(cuid())
+    key       String   @unique // e.g., 'vgas-7D2B-...'
+    name      String?
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model AppVersion {
+    id           String   @id @default(cuid())
+    version      String   @unique
+    releaseNotes String?
+    isCurrent    Boolean  @default(false)
+    createdAt    DateTime @default(now())
+}

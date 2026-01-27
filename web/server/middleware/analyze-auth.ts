@@ -1,15 +1,15 @@
 import { defineEventHandler, getQuery, createError } from 'h3'
+import { getAppApiKeys } from '../utils/config'
 
-export default defineEventHandler((event) => {
-    if (!event.path.startsWith('/api')) {
+export default defineEventHandler(async (event) => {
+    if (!event.path.startsWith('/api/analyze')) {
         return
     }
 
     const query = getQuery(event)
     const apiKey = query.api_key as string
 
-    const validApiKeys =
-        process.env.APP_API_KEY?.split(',').map((k: string) => k.trim()) || []
+    const validApiKeys = await getAppApiKeys()
 
     if (validApiKeys.length === 0) {
         console.warn(

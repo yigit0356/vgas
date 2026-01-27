@@ -1,7 +1,8 @@
 import asyncio
 import io
 import time
-import requests
+import httpx
+import uuid
 import base64
 from PIL import Image
 from core.module import BaseModule
@@ -44,6 +45,10 @@ class VisionModule(BaseModule):
         self.status_message = "System Standby - Ready for Command"
         self.last_image = None # Base64 string
         self.last_audio = None # Base64 string
+        self.current_workflow_id = None
+        # Initialize API Base URL from config
+        config_module = self.manager.modules.get("config")
+        self.api_base_url = config_module.config.get("base_url", "") if config_module else ""
 
         if HAS_PYGAME:
             pygame.mixer.init()
@@ -78,7 +83,8 @@ class VisionModule(BaseModule):
 
     def take_a_photo(self):
         try:
-            # Using the URL from user's code
+            # Using httpx for photo capture too for consistency if needed, but requests is fine for static images
+            import requests
             response = requests.get('https://cdn.dont-ping.me/api/🐭🦕🙃👻🤖.JPEG', timeout=10)
             if response.status_code == 200:
                 return Image.open(io.BytesIO(response.content))
@@ -110,12 +116,13 @@ class VisionModule(BaseModule):
             
             self.audio_state = "idle"
             self.stop_audio_event = False
-            await self.update_status("Speaking finished", "idle")
+            if not self.cancel_workflow:
+                await self.update_status("Speaking finished", "idle")
         except Exception as e:
             print(f"Audio error: {e}")
             self.audio_state = "idle"
 
-    async def image_to_speech(self, image_obj):
+    async def image_to_speech(self, image_obj, workflow_id):
         img_byte_arr = io.BytesIO()
         image_obj.save(img_byte_arr, format='JPEG')
         img_byte_arr.seek(0)
@@ -124,50 +131,68 @@ class VisionModule(BaseModule):
         api_key = config_module.config.get("api_key", "") if config_module else ""
         img_data = img_byte_arr.getvalue()
 
-        # Run the blocking request in a thread to keep the event loop alive
-        loop = asyncio.get_event_loop()
         try:
-            return await loop.run_in_executor(None, self._do_analyze_request, img_data, api_key)
-        except Exception as e:
-            print(f"Analyze thread error: {e}")
-            return None, str(e)
-
-    def _do_analyze_request(self, img_data, api_key):
-        files = {'file': ('image.jpg', io.BytesIO(img_data), 'image/jpeg')}
-        params = {'api_key': api_key}
-        
-        try:
-            response = requests.post(
-                'https://vgas.up.railway.app/api/analyze', 
-                files=files,
-                params=params,
-                timeout=120
-            )
-            if response.status_code == 200:
-                return response.content, None
-            else:
-                try:
-                    error_data = response.json()
-                    error_msg = error_data.get("message", response.text)
-                except:
-                    error_msg = response.text
-                print(f"API Error: {response.status_code} - {error_msg}")
-                return None, f"API {response.status_code}: {error_msg}"
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                files = {'file': ('image.jpg', img_data, 'image/jpeg')}
+                params = {'api_key': api_key, 'id': workflow_id}
+                
+                response = await client.post(
+                    f"{self.api_base_url.rstrip('/')}/api/analyze",
+                    files=files,
+                    params=params
+                )
+                
+                if response.status_code == 200:
+                    return response.content, None
+                else:
+                    try:
+                        error_data = response.json()
+                        error_msg = error_data.get("message", response.text)
+                    except:
+                        error_msg = response.text
+                    print(f"API Error: {response.status_code} - {error_msg}")
+                    return None, f"API {response.status_code}: {error_msg}"
+        except asyncio.CancelledError:
+            print(f"Analyze request {workflow_id} was cancelled locally.")
+            raise
         except Exception as e:
             print(f"Analyze error: {e}")
             return None, str(e)
 
+    async def cancel_remote_request(self, workflow_id):
+        """Tells the web server to stop processing a specific request"""
+        if not workflow_id:
+            return
+        
+        print(f"Sending cancellation signal for {workflow_id}...")
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(f"{self.api_base_url.rstrip('/')}/api/analyze/cancel", params={'id': workflow_id})
+        except Exception as e:
+            print(f"Failed to send cancellation to web side: {e}")
+
     async def process_workflow(self):
         if self.is_processing:
+            return
+            
+        config_module = self.manager.modules.get("config")
+        api_key = config_module.config.get("api_key") if config_module else None
+        
+        if not self.api_base_url or not api_key:
+            await self.notify("Operation Aborted: Please configure Base URL and API Key in settings.", "warning")
             return
         
         self.is_processing = True
         self.cancel_workflow = False
-        await self.update_status("Starting Process...", "camera")
+        self.has_error = False
+        self.workflow_finished = False
+        self.current_workflow_id = str(uuid.uuid4())
+        
+        await self.update_status("Starting Process...", "camera", has_error=False, finished=False)
         await self.notify("Vision process initiated", "info")
 
         # Step 1: Taking Photo
-        if self.cancel_workflow: return self.reset_states()
+        if self.cancel_workflow: return await self.reset_states()
         await self.update_status("Capturing image...", "camera")
         loop = asyncio.get_event_loop()
         photo = await loop.run_in_executor(None, self.take_a_photo)
@@ -177,8 +202,9 @@ class VisionModule(BaseModule):
             photo.save(buffered, format="JPEG")
             self.last_image = base64.b64encode(buffered.getvalue()).decode('utf-8')
             await self.update_status("Image captured and processed", "camera")
+            await self.notify("Scene captured: Processing frame for AI analysis", "info")
 
-        if self.cancel_workflow: return self.reset_states()
+        if self.cancel_workflow: return await self.reset_states()
         if not photo:
             self.is_processing = False
             await self.update_status("Camera Error: Failed to capture image", has_error=True)
@@ -187,13 +213,22 @@ class VisionModule(BaseModule):
 
         # Step 2: Analyzing
         await self.update_status("Analyzing via AI...", "ai")
-        audio_data, error_msg = await self.image_to_speech(photo)
         
+        self.analysis_task = asyncio.create_task(self.image_to_speech(photo, self.current_workflow_id))
+        
+        try:
+            audio_data, error_msg = await self.analysis_task
+            self.analysis_task = None
+        except asyncio.CancelledError:
+            print("AI analysis task cancelled.")
+            return # reset_states will be called by whatever cancelled it
+
         if audio_data:
             self.last_audio = base64.b64encode(audio_data).decode('utf-8')
             await self.update_status("AI analysis received", "ai")
+            await self.notify("AI Analysis: Insights successfully received from engine", "success")
 
-        if self.cancel_workflow: return self.reset_states()
+        if self.cancel_workflow: return await self.reset_states()
         if not audio_data:
             self.is_processing = False
             await self.update_status(f"AI Error: {error_msg}", has_error=True)
@@ -201,6 +236,7 @@ class VisionModule(BaseModule):
             return
 
         # Step 3: Audio Playback
+        await self.notify("Audio Response: AI is speaking the report", "info")
         await self.play_audio(audio_data)
 
         # Finished
@@ -208,11 +244,27 @@ class VisionModule(BaseModule):
             self.is_processing = False
             self.workflow_finished = True
             await self.update_status("Analysis Completed Successfully", "idle", finished=True)
-            await self.notify("Vision process completed", "success")
+            await self.notify("Operation Finished: Full cycle completed successfully", "success")
         else:
-            self.reset_states()
+            await self.reset_states()
 
-    def reset_states(self):
+    async def reset_states(self):
+        print(f"Resetting vision states. Current ID: {self.current_workflow_id}")
+        
+        # 1. Signal local cancellation
+        self.cancel_workflow = True
+        
+        # 2. Cancel the analysis task if running
+        if self.analysis_task and not self.analysis_task.done():
+            self.analysis_task.cancel()
+            
+        # 3. Propagate to web server
+        if self.current_workflow_id:
+            asyncio.create_task(self.cancel_remote_request(self.current_workflow_id))
+
+        # 4. Stop audio
+        pygame.mixer.music.stop()
+        
         self.is_processing = False
         self.audio_state = "idle"
         self.cancel_workflow = False
@@ -223,8 +275,10 @@ class VisionModule(BaseModule):
         self.status_message = "System Standby - Ready for Command"
         self.last_image = None
         self.last_audio = None
-        pygame.mixer.music.stop()
-        asyncio.create_task(self.update_status(self.status_message, self.current_step))
+        self.current_workflow_id = None
+        self.analysis_task = None
+        
+        await self.update_status(self.status_message, self.current_step)
 
     async def execute_command(self, command, data=None):
         print(f"Vision command received: {command}")
@@ -250,11 +304,12 @@ class VisionModule(BaseModule):
             self.audio_state = "idle"
             pygame.mixer.music.stop()
             await self.update_status("Audio Stopped", self.current_step)
+            await self.notify("Audio Playback: Aborted by user", "warning")
             return {"status": "stopped"}
 
         if command == "reset_vision":
-            self.cancel_workflow = True
-            self.reset_states()
+            await self.reset_states()
+            await self.notify("System Reset: Engine and assets cleared", "info")
             return {"status": "reset"}
 
         if command == "audio_backward":
@@ -308,3 +363,5 @@ class VisionModule(BaseModule):
     async def stop(self):
         if IS_PI:
             GPIO.cleanup()
+
+

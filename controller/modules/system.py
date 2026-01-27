@@ -29,6 +29,14 @@ class SystemModule(BaseModule):
 
     async def start(self):
         print("System module started")
+        
+        # Initialize API Base URL from config
+        config_module = self.manager.modules.get("config")
+        self.api_base_url = config_module.config.get("base_url", "") if config_module else ""
+
+        # Check for updates once on startup
+        asyncio.create_task(self.check_for_updates())
+        
         while True:
             try:
                 # Battery
@@ -90,11 +98,38 @@ class SystemModule(BaseModule):
             await asyncio.sleep(5) # Faster updates for system metrics
 
     async def check_for_updates(self):
-        """Simulates a fake API request to check for the latest version"""
-        await asyncio.sleep(2) # Simulate network lag
-        # Mocking: Let's say a new version 1.2.5 is available
-        self.latest_version = "1.2.5" 
-        self.update_available = self.latest_version != self.CURRENT_VERSION
+        """Fetches the latest version from the web API"""
+        if not self.api_base_url:
+            print("Update check skipped: No Base URL configured.")
+            return { "error": "No Base URL" }
+
+        print(f"Checking for updates from {self.api_base_url}...")
+        api_url = f"{self.api_base_url.rstrip('/')}/api/version"
+        
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(api_url)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.latest_version = data.get("version", self.CURRENT_VERSION)
+                    self.update_available = self.latest_version != self.CURRENT_VERSION
+                    
+                    if self.update_available:
+                        changelog = data.get("changelog", [])
+                        msg = f"Update Available: v{self.latest_version} is now out!"
+                        if changelog:
+                            msg += f" (Features: {', '.join(changelog[:2])}...)"
+                        await self.notify(msg, "info")
+                    else:
+                        await self.notify("System is already at the latest version", "success")
+                else:
+                    print(f"Update check failed: {response.status_code}")
+                    await self.notify("Failed to check for updates: Server error", "warning")
+        except Exception as e:
+            print(f"Update check error: {e}")
+            await self.notify(f"Update check error: {str(e)}", "warning")
+
         return {
             "current": self.CURRENT_VERSION,
             "latest": self.latest_version,
@@ -103,6 +138,7 @@ class SystemModule(BaseModule):
 
     async def perform_update(self):
         """Placeholder for the update logic"""
+        await self.notify("System Update: Downloading and installing latest packages...", "info")
         # This will be implemented later
         print("Starting system update...")
         await asyncio.sleep(5)
