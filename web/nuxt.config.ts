@@ -8,10 +8,5 @@ export default defineNuxtConfig({
     vite: {
         plugins: [tailwindcss()]
     },
-    nitro: {
-        externals: {
-            inline: ['@prisma/client']
-        }
-    },
     css: ['./app/assets/css/main.css']
 })
