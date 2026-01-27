@@ -17,7 +17,8 @@ class ConfigModule(BaseModule):
                 pass
         return {
             "api_key": "",
-            "base_url": ""
+            "base_url": "",
+            "active_prompt": "index"
         }
 
     def save_config(self, new_config):

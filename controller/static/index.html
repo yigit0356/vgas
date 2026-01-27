@@ -625,19 +625,42 @@
                 </h2>
 
                 <div class="space-y-6">
-                    <div>
-                        <label
-                            class="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2"
-                        >
-                            Base URL
-                        </label>
-                        <div class="relative">
-                            <input
-                                v-model="config.base_url"
-                                type="text"
-                                class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
-                                placeholder="https://vgas.cloud"
-                            />
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label
+                                class="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2"
+                            >
+                                Base URL
+                            </label>
+                            <div class="relative">
+                                <input
+                                    v-model="config.base_url"
+                                    type="text"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm"
+                                    placeholder="https://vgas.cloud"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label
+                                class="block text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mb-2"
+                            >
+                                Active Prompt
+                            </label>
+                            <div class="relative">
+                                <select
+                                    v-model="config.active_prompt"
+                                    class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500 transition-all text-sm appearance-none cursor-pointer"
+                                    :disabled="!prompts.length"
+                                >
+                                    <option v-if="!prompts.length" value="">{{ config.base_url ? 'Loading prompts...' : 'Configure URL first' }}</option>
+                                    <option v-for="p in prompts" :key="p.id" :value="p.name">{{ p.name }}</option>
+                                </select>
+                                <div class="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -769,6 +792,7 @@
                             &times;
                         </button>
                     </div>
+                </transition-group>
             </div>
         </div>
 
@@ -781,7 +805,8 @@
                     const connected = ref(false)
                     const loading = ref(false)
                     const showApiKey = ref(false)
-                    const config = ref({ api_key: '', base_url: '' })
+                    const config = ref({ api_key: '', base_url: '', active_prompt: '' })
+                    const prompts = ref([])
                     const telemetry = ref({
                         system: {
                             cpu: { temp: 0 },
@@ -874,13 +899,31 @@
                         }
                     }
 
+                    const fetchPrompts = async () => {
+                        if (!config.value.base_url || !config.value.api_key) return
+                        console.log('Fetching prompts from:', `${config.value.base_url.replace(/\/$/, '')}/api/prompts`)
+                        try {
+                            const res = await fetch(`${config.value.base_url.replace(/\/$/, '')}/api/prompts?api_key=${config.value.api_key}`)
+                            if (res.ok) {
+                                prompts.value = await res.json()
+                                console.log('Prompts loaded:', prompts.value.length)
+                            } else {
+                                console.error('Failed to fetch prompts. Status:', res.status)
+                            }
+                        } catch (e) {
+                            console.error('Fetch error:', e)
+                        }
+                    }
+
                     const fetchConfig = async () => {
                         try {
                             const res = await fetch('/config')
                             config.value = await res.json()
+                            if (config.value.base_url && config.value.api_key) {
+                                fetchPrompts()
+                            }
                         } catch (e) {
-                            addNotification("System Config: Failed to retrieve server settings", "warning")
-                            console.error('Failed to fetch config', e)
+                            console.error('Failed to fetch config:', e)
                         }
                     }
 
@@ -893,7 +936,8 @@
                                 body: JSON.stringify(config.value)
                             })
                             if (res.ok) {
-                                fetchConfig()
+                                config.value = await res.json()
+                                fetchPrompts()
                                 addNotification("Security Settings: Configuration saved successfully", "success")
                             }
                         } catch (e) {
@@ -1078,6 +1122,7 @@
                         loading,
                         showApiKey,
                         config,
+                        prompts,
                         telemetry,
                         notifications,
                         logHistory,

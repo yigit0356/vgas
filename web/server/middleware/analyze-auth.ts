@@ -2,7 +2,7 @@ import { defineEventHandler, getQuery, createError } from 'h3'
 import { getAppApiKeys } from '../utils/config'
 
 export default defineEventHandler(async (event) => {
-    if (!event.path.startsWith('/api/analyze')) {
+    if (!event.path.startsWith('/api/analyze') && !event.path.startsWith('/api/prompts')) {
         return
     }
 

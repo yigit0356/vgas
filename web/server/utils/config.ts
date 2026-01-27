@@ -1,7 +1,10 @@
 import prisma from './prisma'
 import { readFileSync } from 'fs'
 
-export async function getSystemPrompt(name: string, fallbackPath?: string): Promise<string> {
+export async function getSystemPrompt(
+    name: string,
+    fallbackPath?: string
+): Promise<string> {
     try {
         const prompt = await prisma.systemPrompt.findUnique({
             where: { name }
@@ -15,14 +18,19 @@ export async function getSystemPrompt(name: string, fallbackPath?: string): Prom
         try {
             return readFileSync(fallbackPath, 'utf8')
         } catch (e) {
-            console.error(`Error reading fallback prompt file ${fallbackPath}:`, e)
+            console.error(
+                `Error reading fallback prompt file ${fallbackPath}:`,
+                e
+            )
         }
     }
-    
+
     return ''
 }
 
-export async function getServiceApiKey(name: string): Promise<string | undefined> {
+export async function getServiceApiKey(
+    name: string
+): Promise<string | undefined> {
     try {
         const apiKey = await prisma.serviceApiKey.findUnique({
             where: { name, isActive: true }
@@ -51,7 +59,10 @@ export async function getAppApiKeys(): Promise<string[]> {
 
     // Fallback to runtimeConfig/env
     const config = useRuntimeConfig()
-    return (config.appApiKey as string)?.split(',').map((k: string) => k.trim()) || []
+    return (
+        (config.appApiKey as string)?.split(',').map((k: string) => k.trim()) ||
+        []
+    )
 }
 
 export async function getAppVersion(): Promise<any> {
@@ -70,4 +81,21 @@ export async function getAppVersion(): Promise<any> {
     } catch (e) {
         return { version: '0.0.0', error: 'No version info found' }
     }
+}
+
+// Management functions for Admin Dashboard
+export async function getAllSystemPrompts() {
+    return await prisma.systemPrompt.findMany({ orderBy: { name: 'asc' } })
+}
+
+export async function getAllServiceApiKeys() {
+    return await prisma.serviceApiKey.findMany({ orderBy: { name: 'asc' } })
+}
+
+export async function getAllAppApiKeys() {
+    return await prisma.appApiKey.findMany({ orderBy: { createdAt: 'desc' } })
+}
+
+export async function getAllAppVersions() {
+    return await prisma.appVersion.findMany({ orderBy: { createdAt: 'desc' } })
 }

@@ -6,11 +6,6 @@ datasource db {
     provider = "postgresql"
 }
 
-model SystemConfig {
-    id    String @id @default("current")
-    Value Json
-}
-
 model SystemPrompt {
     id        String   @id @default(cuid())
     name      String   @unique

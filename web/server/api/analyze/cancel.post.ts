@@ -16,6 +16,8 @@ export default defineEventHandler(async (event) => {
     return {
         success: true,
         cancelled,
-        message: cancelled ? `Request ${id} cancelled` : `Request ${id} not found or already finished`
+        message: cancelled
+            ? `Request ${id} cancelled`
+            : `Request ${id} not found or already finished`
     }
 })

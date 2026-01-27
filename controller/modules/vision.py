@@ -132,9 +132,10 @@ class VisionModule(BaseModule):
         img_data = img_byte_arr.getvalue()
 
         try:
+            active_prompt = config_module.config.get("active_prompt", "analyze") if config_module else "analyze"
             async with httpx.AsyncClient(timeout=120.0) as client:
                 files = {'file': ('image.jpg', img_data, 'image/jpeg')}
-                params = {'api_key': api_key, 'id': workflow_id}
+                params = {'api_key': api_key, 'id': workflow_id, 'prompt': active_prompt}
                 
                 response = await client.post(
                     f"{self.api_base_url.rstrip('/')}/api/analyze",

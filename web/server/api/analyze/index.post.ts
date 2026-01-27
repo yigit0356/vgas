@@ -11,7 +11,9 @@ import { registerRequest, unregisterRequest } from '../../utils/requestManager'
 import { getSystemPrompt, getServiceApiKey } from '../../utils/config'
 
 export default defineEventHandler(async (event) => {
-    const prompt = await getSystemPrompt('analyze', 'prompts/analyze.md')
+    const query = getQuery(event)
+    const promptName = (query.prompt as string) || 'analyze'
+    const prompt = await getSystemPrompt(promptName, 'prompts/analyze.md')
     const geminiKey = await getServiceApiKey('GEMINI')
     const elevenKey = await getServiceApiKey('ELEVENLABS')
 
@@ -23,7 +25,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const model = new GoogleGenerativeAI(geminiKey).getGenerativeModel({
-        model: 'gemini-1.5-flash-latest'
+        model: 'gemini-3-flash-preview'
     })
     const elevenLabs = new ElevenLabsClient({
         apiKey: elevenKey
@@ -53,7 +55,8 @@ export default defineEventHandler(async (event) => {
             })
         }
 
-        if (signal.aborted) throw createError({ statusCode: 499, message: 'Request Aborted' })
+        if (signal.aborted)
+            throw createError({ statusCode: 499, message: 'Request Aborted' })
 
         let resultText = ''
 
@@ -68,7 +71,11 @@ export default defineEventHandler(async (event) => {
                 }
             ])
 
-            if (signal.aborted) throw createError({ statusCode: 499, message: 'Request Aborted' })
+            if (signal.aborted)
+                throw createError({
+                    statusCode: 499,
+                    message: 'Request Aborted'
+                })
 
             resultText = result.response.text()
 
@@ -83,7 +90,8 @@ export default defineEventHandler(async (event) => {
             })
         }
 
-        if (signal.aborted) throw createError({ statusCode: 499, message: 'Request Aborted' })
+        if (signal.aborted)
+            throw createError({ statusCode: 499, message: 'Request Aborted' })
 
         try {
             const audioStream = await elevenLabs.textToSpeech.convert(
@@ -95,7 +103,11 @@ export default defineEventHandler(async (event) => {
                 }
             )
 
-            if (signal.aborted) throw createError({ statusCode: 499, message: 'Request Aborted' })
+            if (signal.aborted)
+                throw createError({
+                    statusCode: 499,
+                    message: 'Request Aborted'
+                })
 
             event.node.res.setHeader('Content-Type', 'audio/mpeg')
 
